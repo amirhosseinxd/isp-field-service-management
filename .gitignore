@@ -1,0 +1,15 @@
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# Django database
+db.sqlite3
+
+# Uploaded files
+media/
+
+# Secrets and logs
+.env
+*.log
