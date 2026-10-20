@@ -128,3 +128,11 @@ MAILERS = {
 }
 
 AUTH_USER_MODEL = "accounts.User"
+
+LOGIN_URL = 'login'
+LOGOUT_REDIRECT_URL = 'login'
+
+LANGUAGE_CODE = 'fa'
+TIME_ZONE = 'Asia/Tehran'  
+USE_I18N = True
+USE_TZ = True

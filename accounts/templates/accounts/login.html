@@ -1,0 +1,19 @@
+{% extends 'accounts/base.html' %}
+{% block title %}ورود به سامانه{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>ورود به سامانه</h2>
+  {% if form.errors %}
+    <p class="error">نام کاربری یا رمز عبور اشتباه است</p>
+  {% endif %}
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ next }}">
+    <label>نام کاربری</label>
+    <input type="text" name="username" class="ltr" autocomplete="username" autofocus required>
+    <label>رمز عبور</label>
+    <input type="password" name="password" class="ltr" autocomplete="current-password" required>
+    <button type="submit" class="login-btn">Log in</button>
+  </form>
+</div>
+{% endblock %}
