@@ -35,7 +35,15 @@ class Job(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='jobs_created',
     )
     created_at = models.DateTimeField(auto_now_add=True)
+
     submitted_at = models.DateTimeField(null=True, blank=True)
+
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        null=True, blank=True, related_name='jobs_reviewed',
+    )
+
+    reviewed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ['-created_at']
@@ -88,6 +96,22 @@ class Job(models.Model):
         self.status = self.Status.SUBMITTED
         self.submitted_at = timezone.now()
         self.save(update_fields=['status', 'submitted_at'])
+
+    def mark_reviewed(self, user):
+        now = timezone.now()  # one timestamp, used for both the database and this object
+        # Single UPDATE with a status condition, so two admins can't both "review" it
+        updated = Job.objects.filter(pk=self.pk, status=self.Status.SUBMITTED).update(
+            status=self.Status.REVIEWED,
+            reviewed_by=user,
+            reviewed_at=now,
+        )
+        if not updated:
+            raise ValueError('Only submitted jobs can be marked as reviewed.')
+
+        # Update the in-memory object only after the database update succeeded
+        self.status = self.Status.REVIEWED
+        self.reviewed_by = user
+        self.reviewed_at = now
 
 
 def job_photo_path(instance, filename):
