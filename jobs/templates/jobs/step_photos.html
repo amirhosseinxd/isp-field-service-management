@@ -1,0 +1,26 @@
+{% extends 'accounts/base.html' %}
+{% block title %}عکس {{ stage_label }}{% endblock %}
+{% block content %}
+{% include 'jobs/_stepper.html' %}
+<div class="card">
+  <h2>عکس مرحله «{{ stage_label }}»</h2>
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {{ form.image.errors }}
+    {{ form.image }}
+    <button type="submit" class="btn">آپلود عکس</button>
+  </form>
+
+  {% if photos %}
+    <div class="photo-grid">
+      {% for p in photos %}<img src="{{ p.image.url }}" alt="">{% endfor %}
+    </div>
+  {% endif %}
+
+  {% if can_continue %}
+    <a class="btn" href="{{ next_url }}">مرحله بعد</a>
+  {% else %}
+    <span class="btn disabled">حداقل یک عکس لازم است</span>
+  {% endif %}
+</div>
+{% endblock %}

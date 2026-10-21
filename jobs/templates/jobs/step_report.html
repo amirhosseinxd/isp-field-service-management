@@ -1,0 +1,21 @@
+{% extends 'accounts/base.html' %}
+{% load l10n %}
+{% block title %}گزارش{% endblock %}
+{% block content %}
+{% include 'jobs/_stepper.html' %}
+<div class="card">
+  <h2>گزارش کار</h2>
+  <p class="hint">
+    موقعیت: <span class="ltr">{{ job.latitude|unlocalize }}, {{ job.longitude|unlocalize }}</span><br>
+    تعداد عکس‌ها: {{ job.photos.count }}
+  </p>
+
+  <form method="post" onsubmit="this.querySelector('button').disabled = true;">
+    {% csrf_token %}
+    <label>توضیحات کار انجام‌شده</label>
+    {{ form.description.errors }}
+    {{ form.description }}
+    <button type="submit" class="btn">ارسال نهایی</button>
+  </form>
+</div>
+{% endblock %}

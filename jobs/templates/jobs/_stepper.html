@@ -1,0 +1,7 @@
+<ol class="steps">
+  {% for s in steps %}
+    <li class="step {{ s.state }}{% if s.active %} active{% endif %}">
+      {% if s.url %}<a href="{{ s.url }}">{{ s.label }}</a>{% else %}<span>{{ s.label }}</span>{% endif %}
+    </li>
+  {% endfor %}
+</ol>

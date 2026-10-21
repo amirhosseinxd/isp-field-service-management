@@ -1,0 +1,65 @@
+{% extends 'accounts/base.html' %}
+{% block title %}ثبت مکان{% endblock %}
+{% block content %}
+{% include 'jobs/_stepper.html' %}
+<div class="card">
+  <h2>ثبت مکان</h2>
+  <p>کار شماره {{ job.pk }} — {{ job.get_job_type_display }}</p>
+  <p class="hint">در محل، دکمه زیر را بزنید تا موقعیت به‌صورت خودکار ثبت شود، یا مختصات را دستی وارد کنید.</p>
+
+  <button type="button" id="get-location" class="btn">دریافت موقعیت من (GPS)</button>
+  <p id="loc-status" class="hint"></p>
+
+  <form method="post">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    {{ form.source }}
+    <label>عرض جغرافیایی (Latitude)</label>
+    {{ form.latitude.errors }}
+    {{ form.latitude }}
+    <label>طول جغرافیایی (Longitude)</label>
+    {{ form.longitude.errors }}
+    {{ form.longitude }}
+    <button type="submit" id="save-loc" class="btn" disabled>ثبت و ادامه</button>
+  </form>
+</div>
+
+<script>
+  const getBtn = document.getElementById('get-location');
+  const statusEl = document.getElementById('loc-status');
+  const latEl = document.getElementById('id_latitude');
+  const lngEl = document.getElementById('id_longitude');
+  const srcEl = document.getElementById('id_source');
+  const saveBtn = document.getElementById('save-loc');
+
+  function refresh() { saveBtn.disabled = !(latEl.value.trim() && lngEl.value.trim()); }
+  refresh();
+
+  // Any manual edit marks the location as manual and enables the button
+  [latEl, lngEl].forEach((el) => el.addEventListener('input', () => {
+    srcEl.value = 'manual';
+    refresh();
+  }));
+
+  getBtn.addEventListener('click', () => {
+    if (!navigator.geolocation) {
+      statusEl.textContent = 'مرورگر شما از موقعیت‌یابی پشتیبانی نمی‌کند. مختصات را دستی وارد کنید.';
+      return;
+    }
+    statusEl.textContent = 'در حال دریافت موقعیت...';
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        latEl.value = pos.coords.latitude.toFixed(6);
+        lngEl.value = pos.coords.longitude.toFixed(6);
+        srcEl.value = 'gps';  // set after the values, so it isn't overwritten
+        statusEl.textContent = 'موقعیت دریافت شد. دقت: حدود ' + Math.round(pos.coords.accuracy) + ' متر';
+        refresh();
+      },
+      () => {
+        statusEl.textContent = 'دریافت موقعیت ممکن نشد. دسترسی به موقعیت را مجاز کنید یا مختصات را دستی وارد کنید.';
+      },
+      { enableHighAccuracy: true, timeout: 15000 }
+    );
+  });
+</script>
+{% endblock %}

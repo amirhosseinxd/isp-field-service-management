@@ -14,6 +14,14 @@ class Job(models.Model):
         SUBMITTED = 'submitted', 'ارسال شده'
         REVIEWED = 'reviewed', 'بررسی شده'
 
+    class LocationSource(models.TextChoices):
+        GPS = 'gps', 'GPS'
+        MANUAL = 'manual', 'دستی'
+
+    location_source = models.CharField(
+        max_length=10, choices=LocationSource.choices, blank=True,
+    )
+
     job_type = models.CharField(max_length=20, choices=JobType.choices)
     assigned_operator = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='jobs',

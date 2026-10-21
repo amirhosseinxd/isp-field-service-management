@@ -29,9 +29,6 @@ def home(request):
     return redirect(home_name_for(request.user))
 
 
-@role_required(User.Role.OPERATOR)
-def operator_home(request):
-    return render(request, 'accounts/operator_home.html')
 
 
 @role_required(User.Role.ADMIN)

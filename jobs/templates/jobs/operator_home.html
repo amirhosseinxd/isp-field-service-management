@@ -1,0 +1,24 @@
+{% extends 'accounts/base.html' %}
+{% block title %}کارهای من{% endblock %}
+{% block content %}
+<h2>کارهای من</h2>
+{% for job in active_jobs %}
+  <a class="card" href="{% url 'job_start' job.pk %}">
+    <strong>کار شماره {{ job.pk }} — {{ job.get_job_type_display }}</strong>
+    <span class="badge">{{ job.get_status_display }}</span>
+    <div class="hint">{{ job.created_at|date:"Y/m/d H:i" }}</div>
+  </a>
+{% empty %}
+  <div class="card"><p>فعلاً کار فعالی ندارید.</p></div>
+{% endfor %}
+
+{% if submitted_jobs %}
+  <h3>ارسال‌شده‌های اخیر</h3>
+  {% for job in submitted_jobs %}
+    <div class="card" style="margin-bottom:12px">
+      کار شماره {{ job.pk }} — {{ job.get_job_type_display }}
+      <span class="badge">{{ job.get_status_display }}</span>
+    </div>
+  {% endfor %}
+{% endif %}
+{% endblock %}
