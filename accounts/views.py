@@ -9,7 +9,7 @@ from django.urls import reverse
 
 
 def home_name_for(user):
-    """Name of the landing page for this user's role"""
+    """Name of the landing page for this user's role."""
     if user.role == User.Role.ADMIN:
         return 'support_dashboard'
     return 'operator_home'
@@ -27,10 +27,3 @@ class RoleLoginView(LoginView):
 @login_required
 def home(request):
     return redirect(home_name_for(request.user))
-
-
-
-
-@role_required(User.Role.ADMIN)
-def support_dashboard(request):
-    return render(request, 'accounts/support_dashboard.html')

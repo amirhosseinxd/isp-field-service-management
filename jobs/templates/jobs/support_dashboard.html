@@ -1,0 +1,44 @@
+{% extends 'accounts/base.html' %}
+{% block title %}داشبورد پشتیبانی{% endblock %}
+{% block main_class %}wide{% endblock %}
+{% block content %}
+<h2>کارها <span class="badge">{{ pending_count }} در انتظار بررسی</span></h2>
+
+<form method="get" class="card filters">
+  {% for field in form %}
+    <div>{{ field.label_tag }} {{ field }} {{ field.errors }}</div>
+  {% endfor %}
+  <div class="filter-actions">
+    <button type="submit">اعمال فیلتر</button>
+    <a href="{% url 'support_dashboard' %}?status=">نمایش همه</a>
+  </div>
+</form>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>شماره</th><th>نوع</th><th>تکنسین</th><th>وضعیت</th>
+        <th>زمان ارسال</th><th>عکس‌ها</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for job in page %}
+        <tr>
+          <td>{{ job.pk }}</td>
+          <td>{{ job.get_job_type_display }}</td>
+          <td>{{ job.assigned_operator.get_full_name|default:job.assigned_operator.username }}</td>
+          <td><span class="badge">{{ job.get_status_display }}</span></td>
+          <td>{{ job.submitted_at|date:"Y/m/d H:i"|default:"—" }}</td>
+          <td>{{ job.photo_total }}</td>
+          <td><a href="{% url 'support_job_detail' job.pk %}">مشاهده</a></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7">موردی پیدا نشد.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% include 'jobs/_pagination.html' %}
+{% endblock %}

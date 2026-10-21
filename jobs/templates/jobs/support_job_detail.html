@@ -1,0 +1,72 @@
+{% extends 'accounts/base.html' %}
+{% load l10n %}
+{% block title %}کار شماره {{ job.pk }}{% endblock %}
+{% block main_class %}wide{% endblock %}
+{% block content %}
+<p><a href="{% url 'support_dashboard' %}">← بازگشت به فهرست</a></p>
+
+<div class="card" style="margin-bottom:16px">
+  <h2>کار شماره {{ job.pk }} — {{ job.get_job_type_display }}
+    <span class="badge">{{ job.get_status_display }}</span></h2>
+  <p>
+    تکنسین: {{ job.assigned_operator.get_full_name|default:job.assigned_operator.username }}<br>
+    ایجاد: {{ job.created_at|date:"Y/m/d H:i" }}
+      ({{ job.created_by.get_full_name|default:job.created_by.username }})<br>
+    ارسال: {{ job.submitted_at|date:"Y/m/d H:i"|default:"—" }}<br>
+    {% if job.reviewed_at %}
+      بررسی: {{ job.reviewed_at|date:"Y/m/d H:i" }}
+      ({{ job.reviewed_by.get_full_name|default:job.reviewed_by.username }})
+    {% endif %}
+  </p>
+
+  {% if job.status == 'submitted' %}
+    <form method="post" action="{% url 'support_job_review' job.pk %}">
+      {% csrf_token %}
+      <button type="submit">ثبت به‌عنوان بررسی‌شده</button>
+    </form>
+  {% endif %}
+</div>
+
+<div class="card" style="margin-bottom:16px">
+  <h3>مکان</h3>
+  {% if job.has_location %}
+    <p>
+      <span class="ltr">{{ job.latitude|unlocalize }}, {{ job.longitude|unlocalize }}</span>
+      {% if job.location_source %}<span class="badge">{{ job.get_location_source_display }}</span>{% endif %}
+    </p>
+    <p><a href="{{ map_url }}" target="_blank" rel="noopener">نمایش روی نقشه</a></p>
+  {% else %}
+    <p>مکانی ثبت نشده است.</p>
+  {% endif %}
+</div>
+
+<div class="card" style="margin-bottom:16px">
+  <h3>گزارش</h3>
+  {% if report %}
+    <p style="white-space: pre-wrap">{{ report.description }}</p>
+    <p class="hint">ثبت‌شده در {{ report.submitted_at|date:"Y/m/d H:i" }}</p>
+  {% else %}
+    <p>هنوز گزارشی ثبت نشده است.</p>
+  {% endif %}
+</div>
+
+{% for label, photos in photo_groups %}
+  <div class="card" style="margin-bottom:16px">
+    <h3>عکس‌های «{{ label }}»</h3>
+    {% if photos %}
+      <div class="photo-grid">
+        {% for p in photos %}
+          <figure>
+            <a href="{% url 'photo_file' p.pk %}" target="_blank" rel="noopener">
+              <img src="{% url 'photo_file' p.pk %}" alt="" loading="lazy">
+            </a>
+            <figcaption>{{ p.uploaded_at|date:"Y/m/d H:i" }}</figcaption>
+          </figure>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="hint">عکسی ثبت نشده است.</p>
+    {% endif %}
+  </div>
+{% endfor %}
+{% endblock %}

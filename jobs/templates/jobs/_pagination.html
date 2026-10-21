@@ -1,0 +1,11 @@
+{% if page.has_other_pages %}
+<nav class="pager">
+  {% if page.has_previous %}
+    <a href="?{% if qs %}{{ qs }}&{% endif %}page={{ page.previous_page_number }}">قبلی</a>
+  {% endif %}
+  <span>صفحه {{ page.number }} از {{ page.paginator.num_pages }}</span>
+  {% if page.has_next %}
+    <a href="?{% if qs %}{{ qs }}&{% endif %}page={{ page.next_page_number }}">بعدی</a>
+  {% endif %}
+</nav>
+{% endif %}

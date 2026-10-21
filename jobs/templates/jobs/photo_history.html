@@ -1,0 +1,36 @@
+{% extends 'accounts/base.html' %}
+{% block title %}آرشیو عکس‌ها{% endblock %}
+{% block main_class %}wide{% endblock %}
+{% block content %}
+<h2>آرشیو عکس‌ها</h2>
+
+<form method="get" class="card filters">
+  {% for field in form %}
+    <div>{{ field.label_tag }} {{ field }} {{ field.errors }}</div>
+  {% endfor %}
+  <div class="filter-actions">
+    <button type="submit">اعمال فیلتر</button>
+    <a href="{% url 'photo_history' %}">پاک کردن</a>
+  </div>
+</form>
+
+<div class="photo-grid big">
+  {% for p in page %}
+    <figure>
+      <a href="{% url 'photo_file' p.pk %}" target="_blank" rel="noopener">
+        <img src="{% url 'photo_file' p.pk %}" alt="" loading="lazy">
+      </a>
+      <figcaption>
+        <a href="{% url 'support_job_detail' p.job_id %}">کار {{ p.job_id }}</a>
+        — {{ p.get_stage_display }}<br>
+        {{ p.job.assigned_operator.get_full_name|default:p.job.assigned_operator.username }}<br>
+        {{ p.uploaded_at|date:"Y/m/d H:i" }}
+      </figcaption>
+    </figure>
+  {% empty %}
+    <p>عکسی پیدا نشد.</p>
+  {% endfor %}
+</div>
+
+{% include 'jobs/_pagination.html' %}
+{% endblock %}

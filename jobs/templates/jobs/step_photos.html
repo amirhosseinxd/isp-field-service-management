@@ -13,7 +13,7 @@
 
   {% if photos %}
     <div class="photo-grid">
-      {% for p in photos %}<img src="{{ p.image.url }}" alt="">{% endfor %}
+      {% for p in photos %}<img src="{% url 'photo_file' p.pk %}" alt="">{% endfor %}
     </div>
   {% endif %}
 
