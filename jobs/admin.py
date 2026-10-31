@@ -1,13 +1,12 @@
 from django.contrib import admin
-from .models import Job, JobPhoto, WorkReport
+from .models import Job, WorkReport,JobEvidence
 
 
 
 
-class JobPhotoInline(admin.TabularInline):
-    model = JobPhoto
+class JobEvidenceInline(admin.TabularInline):
+    model = JobEvidence
     extra = 0
-
 
 
 
@@ -20,11 +19,12 @@ class WorkReportInline(admin.StackedInline):
 
 
 
+
 @admin.register(Job)
 class JobAdmin(admin.ModelAdmin):
-    list_display = ('id', 'job_type', 'assigned_operator', 'status', 'created_at', 'submitted_at')
-    list_filter = ('job_type', 'status', 'assigned_operator')
-    inlines = [JobPhotoInline, WorkReportInline]
+    list_display = ('id', 'job_type', 'workflow', 'assigned_operator', 'status', 'created_at', 'submitted_at')
+    list_filter = ('job_type', 'workflow', 'status', 'assigned_operator')
+    inlines = [JobEvidenceInline, WorkReportInline]
 
     def save_model(self, request, obj, form, change):
         if not change:
@@ -34,7 +34,7 @@ class JobAdmin(admin.ModelAdmin):
     def save_formset(self, request, form, formset, change):
         instances = formset.save(commit=False)
         for inst in instances:
-            if isinstance(inst, JobPhoto) and not inst.pk:
+            if isinstance(inst, JobEvidence) and not inst.pk:
                 inst.uploaded_by = request.user
             if isinstance(inst, WorkReport) and not inst.pk:
                 inst.submitted_by = request.user

@@ -13,9 +13,12 @@ from accounts.models import User
 from accounts.permissions import role_required
 
 from .forms import JobFilterForm, LocationForm, PhotoFilterForm, PhotoForm, ReportForm
-from .models import Job, JobPhoto
+from .models import Job
+from .models import Job, JobEvidence
 
-
+from .forms import (
+    MAX_PHOTOS_PER_STAGE, JobFilterForm, LocationForm, PhotoFilterForm, PhotoForm, ReportForm,
+)
 
 
 STEPS = [
@@ -118,7 +121,7 @@ def job_location(request, pk):
 
 @role_required(User.Role.OPERATOR)
 def job_photos(request, pk, stage):
-    if stage not in JobPhoto.Stage.values:
+    if stage not in JobEvidence.Category.values:
         raise Http404
     job = get_operator_job(request, pk)
     blocked = guard_step(request, job, stage)
@@ -126,16 +129,21 @@ def job_photos(request, pk, stage):
         return blocked
 
     form = PhotoForm(request.POST or None, request.FILES or None)
-    if request.method == 'POST' and form.is_valid():
-        photo = form.save(commit=False)
-        photo.job = job
-        photo.stage = stage
-        photo.uploaded_by = request.user
-        photo.save()
-        messages.success(request, 'عکس ثبت شد.')
-        return redirect('job_photos', pk=job.pk, stage=stage)
+    photos = job.evidence.filter(kind=JobEvidence.Kind.PHOTO, category=stage)
 
-    photos = job.photos.filter(stage=stage)
+    if request.method == 'POST' and form.is_valid():
+        images = form.cleaned_data['images']
+        if photos.count() + len(images) > MAX_PHOTOS_PER_STAGE:
+            form.add_error('images', f'حداکثر {MAX_PHOTOS_PER_STAGE} عکس برای هر مرحله مجاز است.')
+        else:
+            for image in images:
+                JobEvidence.objects.create(
+                    job=job, kind=JobEvidence.Kind.PHOTO, category=stage,
+                    file=image, uploaded_by=request.user,
+                )
+            messages.success(request, f'{len(images)} عکس ثبت شد.')
+            return redirect('job_photos', pk=job.pk, stage=stage)
+
     next_key = STEP_KEYS[STEP_KEYS.index(stage) + 1]
     return render(request, 'jobs/step_photos.html', {
         'job': job,
@@ -169,6 +177,22 @@ def job_report(request, pk):
         'job': job, 'form': form, 'steps': stepper(job, 'report'),
     })
 
+@role_required(User.Role.OPERATOR)
+@require_POST
+def job_photo_delete(request, pk, photo_pk):
+    job = get_operator_job(request, pk)
+    if job.status in CLOSED:
+        messages.error(request, 'بعد از ارسال کار، حذف عکس ممکن نیست.')
+        return redirect('operator_home')
+
+    photo = get_object_or_404(JobEvidence, pk=photo_pk, job=job)
+    stage = photo.category
+    storage, name = photo.file.storage, photo.file.name
+    photo.delete()          # database row first, so a failure can't leave a broken link
+    storage.delete(name)    # then the file on disk
+    messages.success(request, 'عکس حذف شد.')
+    return redirect('job_photos', pk=job.pk, stage=stage)
+
 
 
 def paginate(request, queryset, per_page):
@@ -181,16 +205,16 @@ def paginate(request, queryset, per_page):
 @login_required
 def job_photo(request, pk):
     """Serve a photo file only to support admins and the job's own operator."""
-    photo = get_object_or_404(JobPhoto.objects.select_related('job'), pk=pk)
+    photo = get_object_or_404(JobEvidence.objects.select_related('job'), pk=pk)
     user = request.user
     allowed = user.role == User.Role.ADMIN or photo.job.assigned_operator_id == user.id
     if not allowed:
         raise Http404
     try:
-        file = photo.image.open('rb')
+        file = photo.file.open('rb')
     except FileNotFoundError:
         raise Http404
-    content_type = mimetypes.guess_type(photo.image.name)[0] or 'application/octet-stream'
+    content_type = mimetypes.guess_type(photo.file.name)[0] or 'application/octet-stream'
     response = FileResponse(file, content_type=content_type)
     response['Cache-Control'] = 'private, max-age=3600'
     response['X-Content-Type-Options'] = 'nosniff'
@@ -203,7 +227,7 @@ def support_dashboard(request):
     form = JobFilterForm(request.GET or {'status': Job.Status.SUBMITTED})
     jobs = (
         Job.objects.select_related('assigned_operator')
-        .annotate(photo_total=Count('photos'))
+        .annotate(photo_total=Count('evidence'))
         .order_by(F('submitted_at').desc(nulls_last=True), '-created_at')
     )
     if form.is_valid():
@@ -236,8 +260,10 @@ def support_job_detail(request, pk):
     )
     report = getattr(job, 'report', None)
     photo_groups = [
-        (label, job.photos.filter(stage=value).select_related('uploaded_by'))
-        for value, label in JobPhoto.Stage.choices
+        (label, job.evidence.filter(
+            kind=JobEvidence.Kind.PHOTO, category=value,
+        ).select_related('uploaded_by'))
+        for value, label in JobEvidence.Category.choices
     ]
     map_url = None
     if job.has_location:
@@ -267,13 +293,17 @@ def support_job_review(request, pk):
 @role_required(User.Role.ADMIN)
 def photo_history(request):
     form = PhotoFilterForm(request.GET or None)
-    photos = JobPhoto.objects.select_related('job', 'job__assigned_operator').order_by('-uploaded_at')
+    photos = (
+        JobEvidence.objects.filter(kind=JobEvidence.Kind.PHOTO)
+        .select_related('job', 'job__assigned_operator')
+        .order_by('-uploaded_at')
+    )
     if form.is_valid():
         cd = form.cleaned_data
         if cd['job']:
             photos = photos.filter(job_id=cd['job'])
-        if cd['stage']:
-            photos = photos.filter(stage=cd['stage'])
+        if cd['category']:
+            photos = photos.filter(category=cd['category'])
         if cd['operator']:
             photos = photos.filter(job__assigned_operator=cd['operator'])
         if cd['date_from']:

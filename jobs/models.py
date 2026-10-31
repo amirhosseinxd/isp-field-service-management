@@ -1,18 +1,47 @@
 from django.conf import settings
 from django.db import models, transaction
 from django.utils import timezone
-
+from django.core.exceptions import ValidationError
 
 class Job(models.Model):
     class JobType(models.TextChoices):
         INSTALLATION = 'installation', 'نصب'
         REPAIR = 'repair', 'تعمیر'
+        MALFUNCTION_REPAIR = 'malfunction_repair', 'رفع خرابی'
+
+
+    
+
+
+    class Workflow(models.TextChoices):
+        FTTH_INQUIRY = 'ftth_inquiry', 'امکان‌سنجی'
+        DROP_CABLE = 'drop_cable', 'دراپ کشی'
+        FUSION = 'fusion', 'فیوژن'
+        SERVICE_DELIVERY = 'service_delivery', 'تحویل سرویس'
+        MALFUNCTION = 'malfunction', 'رفع خرابی'
+
+    
+
+
+
 
     class Status(models.TextChoices):
         ASSIGNED = 'assigned', 'ارجاع شده'
         IN_PROGRESS = 'in_progress', 'در حال انجام'
         SUBMITTED = 'submitted', 'ارسال شده'
         REVIEWED = 'reviewed', 'بررسی شده'
+
+
+    VALID_WORKFLOWS = {
+        JobType.INSTALLATION: [
+            Workflow.FTTH_INQUIRY, Workflow.DROP_CABLE,
+            Workflow.FUSION, Workflow.SERVICE_DELIVERY,
+        ],
+        JobType.REPAIR: [
+            Workflow.DROP_CABLE, Workflow.FUSION, Workflow.SERVICE_DELIVERY,
+        ],
+        JobType.MALFUNCTION_REPAIR: [Workflow.MALFUNCTION],
+    }
 
     class LocationSource(models.TextChoices):
         GPS = 'gps', 'GPS'
@@ -23,6 +52,7 @@ class Job(models.Model):
     )
 
     job_type = models.CharField(max_length=20, choices=JobType.choices)
+    workflow = models.CharField(max_length=30, choices=Workflow.choices)
     assigned_operator = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='jobs',
         limit_choices_to={'role': 'operator'},
@@ -47,16 +77,40 @@ class Job(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        constraints = [
+            models.CheckConstraint(
+                name='job_valid_workflow_for_type',
+                condition=(
+                    models.Q(
+                        job_type='installation',
+                        workflow__in=['ftth_inquiry', 'drop_cable', 'fusion', 'service_delivery'],
+                    )
+                    | models.Q(
+                        job_type='repair',
+                        workflow__in=['drop_cable', 'fusion', 'service_delivery'],
+                    )
+                    | models.Q(job_type='malfunction_repair', workflow='malfunction')
+                ),
+            ),
+        ]
 
     def __str__(self):
-        return f"Job #{self.pk} - {self.get_job_type_display()}"
+        return f"Job #{self.pk} - {self.get_job_type_display()} / {self.get_workflow_display()}"
+
+    def clean(self):
+        super().clean()
+        allowed = self.VALID_WORKFLOWS.get(self.job_type, [])
+        if self.workflow and self.workflow not in allowed:
+            raise ValidationError({'workflow': 'این نوع کار برای دسته انتخاب‌شده مجاز نیست.'})
 
     @property
     def has_location(self):
         return self.latitude is not None and self.longitude is not None
 
-    def photo_count(self, stage):
-        return self.photos.filter(stage=stage).count()
+    def photo_count(self, category):
+        return self.evidence.filter(
+            kind=JobEvidence.Kind.PHOTO, category=category,
+        ).count()
 
     def missing_requirements(self):
         """Everything still needed before this job can be submitted."""
@@ -64,7 +118,7 @@ class Job(models.Model):
         if not self.has_location:
             missing.append('موقعیت مکانی')
 
-        for stage, label in JobPhoto.Stage.choices:
+        for stage, label in JobEvidence.Category.choices:
             if self.photo_count(stage) < 1:
                 missing.append(f'عکس {label}')
         return missing
@@ -73,7 +127,7 @@ class Job(models.Model):
         """First incomplete step, in the technician's required order."""
         if not self.has_location:
             return 'location'
-        for stage in (JobPhoto.Stage.BEFORE, JobPhoto.Stage.DURING, JobPhoto.Stage.AFTER):
+        for stage in (JobEvidence.Category.BEFORE, JobEvidence.Category.DURING, JobEvidence.Category.AFTER):
             if self.photo_count(stage) < 1:
                 return stage
         if not hasattr(self, 'report'):
@@ -115,26 +169,36 @@ class Job(models.Model):
 
 
 def job_photo_path(instance, filename):
-    return f'job_photos/job_{instance.job_id}/{instance.stage}/{filename}'
+    # This function name is kept on purpose: old migrations import it.
+    # It now builds the folder path for every evidence file.
+    return f'job_evidence/job_{instance.job_id}/{instance.category}/{filename}'
 
 
-class JobPhoto(models.Model):
-    class Stage(models.TextChoices):
+class JobEvidence(models.Model):
+    class Kind(models.TextChoices):
+        PHOTO = 'photo', 'عکس'
+        VIDEO = 'video', 'ویدیو'
+
+    class Category(models.TextChoices):
         BEFORE = 'before', 'قبل'
         DURING = 'during', 'حین کار'
         AFTER = 'after', 'بعد'
 
-    job = models.ForeignKey(Job, on_delete=models.CASCADE, related_name='photos')
-    image = models.ImageField(upload_to=job_photo_path)
-    stage = models.CharField(max_length=10, choices=Stage.choices)
+    job = models.ForeignKey(Job, on_delete=models.CASCADE, related_name='evidence')
+    kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.PHOTO)
+    category = models.CharField(max_length=30, choices=Category.choices)
+    file = models.FileField(upload_to=job_photo_path)
     uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['uploaded_at']
+        verbose_name_plural = 'job evidence'
 
     def __str__(self):
-        return f"{self.job} - {self.stage}"
+        return f"{self.job} - {self.category}"
+
+
 
 
 class WorkReport(models.Model):

@@ -7,7 +7,7 @@
   <h2>گزارش کار</h2>
   <p class="hint">
     موقعیت: <span class="ltr">{{ job.latitude|unlocalize }}, {{ job.longitude|unlocalize }}</span><br>
-    تعداد عکس‌ها: {{ job.photos.count }}
+    تعداد عکس‌ها: {{ job.evidence.count }}
   </p>
 
   <form method="post" onsubmit="this.querySelector('button').disabled = true;">

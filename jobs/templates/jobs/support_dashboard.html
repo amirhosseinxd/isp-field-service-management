@@ -26,7 +26,7 @@
       {% for job in page %}
         <tr>
           <td>{{ job.pk }}</td>
-          <td>{{ job.get_job_type_display }}</td>
+          <td>{{ job.get_job_type_display }} — {{ job.get_workflow_display }}</td>
           <td>{{ job.assigned_operator.get_full_name|default:job.assigned_operator.username }}</td>
           <td><span class="badge">{{ job.get_status_display }}</span></td>
           <td>{{ job.submitted_at|date:"Y/m/d H:i"|default:"—" }}</td>

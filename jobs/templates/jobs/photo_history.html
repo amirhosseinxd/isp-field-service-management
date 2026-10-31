@@ -22,7 +22,7 @@
       </a>
       <figcaption>
         <a href="{% url 'support_job_detail' p.job_id %}">کار {{ p.job_id }}</a>
-        — {{ p.get_stage_display }}<br>
+        — {{ p.get_category_display }}<br>
         {{ p.job.assigned_operator.get_full_name|default:p.job.assigned_operator.username }}<br>
         {{ p.uploaded_at|date:"Y/m/d H:i" }}
       </figcaption>

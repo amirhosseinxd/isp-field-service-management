@@ -11,6 +11,7 @@ urlpatterns = [
     path('jobs/<int:pk>/location/', views.job_location, name='job_location'),
     path('jobs/<int:pk>/photos/<str:stage>/', views.job_photos, name='job_photos'),
     path('jobs/<int:pk>/report/', views.job_report, name='job_report'),
+    path('jobs/<int:pk>/photos/<int:photo_pk>/delete/', views.job_photo_delete, name='job_photo_delete'),
 
     # Support
     path('support/', views.support_dashboard, name='support_dashboard'),

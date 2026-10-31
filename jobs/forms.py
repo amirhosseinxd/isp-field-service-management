@@ -1,10 +1,12 @@
 from django import forms
 from decimal import Decimal, InvalidOperation
-from .models import Job, JobPhoto
+from .models import Job, JobEvidence
 from accounts.models import User
 
 
 MAX_PHOTO_MB = 15
+MAX_FILES_PER_UPLOAD = 10
+MAX_PHOTOS_PER_STAGE = 20
 
 PERSIAN_DIGITS = str.maketrans('۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩', '01234567890123456789')
 
@@ -41,21 +43,37 @@ class LocationForm(forms.Form):
 
 
 
-class PhotoForm(forms.ModelForm):
-    class Meta:
-        model = JobPhoto
-        fields = ['image']
-        widgets = {
-            'image': forms.FileInput(attrs={
-                'accept': 'image/*',
-            }),
-        }
+class MultipleFileInput(forms.FileInput):
+    allow_multiple_selected = True
 
-    def clean_image(self):
-        image = self.cleaned_data['image']
-        if image.size > MAX_PHOTO_MB * 1024 * 1024:
-            raise forms.ValidationError('حجم عکس نباید بیشتر از ۱۵ مگابایت باشد.')
-        return image
+
+class MultipleImageField(forms.ImageField):
+    """An image field that accepts several files and returns a list."""
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault('widget', MultipleFileInput(attrs={'accept': 'image/*'}))
+        super().__init__(*args, **kwargs)
+
+    def clean(self, data, initial=None):
+        clean_one = super().clean
+        if isinstance(data, (list, tuple)):
+            return [clean_one(item, initial) for item in data]
+        return [clean_one(data, initial)]
+
+
+class PhotoForm(forms.Form):
+    images = MultipleImageField()
+
+    def clean_images(self):
+        images = self.cleaned_data['images']
+        if len(images) > MAX_FILES_PER_UPLOAD:
+            raise forms.ValidationError(
+                f'در هر بار آپلود حداکثر {MAX_FILES_PER_UPLOAD} عکس مجاز است.'
+            )
+        for image in images:
+            if image.size > MAX_PHOTO_MB * 1024 * 1024:
+                raise forms.ValidationError('حجم هر عکس نباید بیشتر از ۱۵ مگابایت باشد.')
+        return images
 
 
 
@@ -103,9 +121,9 @@ class JobFilterForm(forms.Form):
 
 class PhotoFilterForm(forms.Form):
     job = forms.IntegerField(label='شماره کار', required=False, min_value=1)
-    stage = forms.ChoiceField(
+    category = forms.ChoiceField(
         label='مرحله', required=False,
-        choices=[('', 'همه')] + JobPhoto.Stage.choices,
+        choices=[('', 'همه')] + JobEvidence.Category.choices,
     )
     operator = OperatorChoiceField(
         label='تکنسین', required=False, empty_label='همه', queryset=operators(),

@@ -4,16 +4,27 @@
 {% include 'jobs/_stepper.html' %}
 <div class="card">
   <h2>عکس مرحله «{{ stage_label }}»</h2>
+  <p class="hint">می‌توانید چند عکس را هم‌زمان انتخاب کنید.</p>
+
   <form method="post" enctype="multipart/form-data">
     {% csrf_token %}
-    {{ form.image.errors }}
-    {{ form.image }}
-    <button type="submit" class="btn">آپلود عکس</button>
+    {{ form.images.errors }}
+    {{ form.images }}
+    <button type="submit" class="btn">آپلود عکس‌ها</button>
   </form>
 
   {% if photos %}
     <div class="photo-grid">
-      {% for p in photos %}<img src="{% url 'photo_file' p.pk %}" alt="">{% endfor %}
+      {% for p in photos %}
+        <figure>
+          <img src="{% url 'photo_file' p.pk %}" alt="" loading="lazy">
+          <form method="post" action="{% url 'job_photo_delete' job.pk p.pk %}"
+                onsubmit="return confirm('این عکس حذف شود؟');">
+            {% csrf_token %}
+            <button type="submit" class="danger small">حذف</button>
+          </form>
+        </figure>
+      {% endfor %}
     </div>
   {% endif %}
 
