@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Job, WorkReport,JobEvidence
+from .models import Job, JobEvidence, JobMaterialUsage, WorkReport
 
 
 
@@ -16,7 +16,10 @@ class WorkReportInline(admin.StackedInline):
 
 
 
-
+class JobMaterialUsageInline(admin.TabularInline):
+    model = JobMaterialUsage
+    extra = 0
+    readonly_fields = ('material_code', 'material_name', 'unit')
 
 
 
@@ -24,7 +27,7 @@ class WorkReportInline(admin.StackedInline):
 class JobAdmin(admin.ModelAdmin):
     list_display = ('id', 'job_type', 'workflow', 'assigned_operator', 'status', 'created_at', 'submitted_at')
     list_filter = ('job_type', 'workflow', 'status', 'assigned_operator')
-    inlines = [JobEvidenceInline, WorkReportInline]
+    inlines = [JobEvidenceInline, JobMaterialUsageInline, WorkReportInline]
 
     def save_model(self, request, obj, form, change):
         if not change:
@@ -33,6 +36,8 @@ class JobAdmin(admin.ModelAdmin):
 
     def save_formset(self, request, form, formset, change):
         instances = formset.save(commit=False)
+        for obj in formset.deleted_objects:
+            obj.delete()
         for inst in instances:
             if isinstance(inst, JobEvidence) and not inst.pk:
                 inst.uploaded_by = request.user

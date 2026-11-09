@@ -2,6 +2,8 @@ from django.conf import settings
 from django.db import models, transaction
 from django.utils import timezone
 from django.core.exceptions import ValidationError
+from decimal import Decimal
+from django.core.validators import MinValueValidator
 
 class Job(models.Model):
     class JobType(models.TextChoices):
@@ -209,3 +211,38 @@ class WorkReport(models.Model):
 
     def __str__(self):
         return f"Report for {self.job}"
+
+
+
+
+class JobMaterialUsage(models.Model):
+    job = models.ForeignKey(Job, on_delete=models.CASCADE, related_name='material_usages')
+    material = models.ForeignKey(
+        'inventory.Material', on_delete=models.PROTECT, related_name='usages',
+    )
+    # Copies taken when the row is first saved, so the job keeps its own record
+    material_code = models.CharField(max_length=50, editable=False)
+    material_name = models.CharField(max_length=200, editable=False)
+    unit = models.CharField(max_length=30, editable=False)
+    quantity = models.DecimalField(
+        max_digits=10, decimal_places=2,
+        validators=[MinValueValidator(Decimal('0.01'))],
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['material_code']
+        constraints = [
+            models.UniqueConstraint(fields=['job', 'material'], name='unique_material_per_job'),
+            models.CheckConstraint(condition=models.Q(quantity__gt=0), name='material_quantity_positive'),
+        ]
+
+    def save(self, *args, **kwargs):
+        if not self.material_code:
+            self.material_code = self.material.code
+            self.material_name = self.material.name
+            self.unit = self.material.unit
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.material_code} × {self.quantity}"
