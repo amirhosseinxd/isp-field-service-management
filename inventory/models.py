@@ -1,7 +1,12 @@
 from django.db import models
 
 
+
 class Material(models.Model):
+
+    UNIT_METER = 'متر'
+    UNIT_PIECE = 'عدد'
+    
     code = models.CharField(max_length=50, unique=True)
     name = models.CharField(max_length=200)
     unit = models.CharField(max_length=30, default='عدد')

@@ -121,7 +121,7 @@ def job_location(request, pk):
 
 @role_required(User.Role.OPERATOR)
 def job_photos(request, pk, stage):
-    if stage not in JobEvidence.Category.values:
+    if stage not in JobEvidence.LEGACY_STAGES:
         raise Http404
     job = get_operator_job(request, pk)
     blocked = guard_step(request, job, stage)
@@ -259,12 +259,13 @@ def support_job_detail(request, pk):
         pk=pk,
     )
     report = getattr(job, 'report', None)
-    photo_groups = [
-        (label, job.evidence.filter(
+    photo_groups = []
+    for value, label in JobEvidence.Category.choices:
+        photos = job.evidence.filter(
             kind=JobEvidence.Kind.PHOTO, category=value,
-        ).select_related('uploaded_by'))
-        for value, label in JobEvidence.Category.choices
-    ]
+        ).select_related('uploaded_by')
+        if photos:
+            photo_groups.append((label, photos))
     map_url = None
     if job.has_location:
         lat, lng = job.latitude, job.longitude

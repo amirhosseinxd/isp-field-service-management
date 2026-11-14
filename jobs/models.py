@@ -34,6 +34,12 @@ class Job(models.Model):
         REVIEWED = 'reviewed', 'بررسی شده'
 
 
+
+    class FtthOutcome(models.TextChoices):
+        FEASIBLE = 'feasible', 'بله — امکان‌پذیر'
+        UNFEASIBLE = 'unfeasible', 'خیر — غیرقابل انجام'
+        NEEDS_MATERIALS = 'needs_materials', 'نیاز به متریال دارد'
+
     VALID_WORKFLOWS = {
         JobType.INSTALLATION: [
             Workflow.FTTH_INQUIRY, Workflow.DROP_CABLE,
@@ -77,6 +83,20 @@ class Job(models.Model):
 
     reviewed_at = models.DateTimeField(null=True, blank=True)
 
+        # Answers given by the technician. Empty / null means "not answered yet".
+    ftth_outcome = models.CharField(max_length=20, choices=FtthOutcome.choices, blank=True)
+    fat_needs_splitter = models.BooleanField(null=True, blank=True)
+    tokar_used = models.BooleanField(null=True, blank=True)
+    materials_used = models.BooleanField(null=True, blank=True)
+    upload_mbps = models.DecimalField(
+        max_digits=7, decimal_places=2, null=True, blank=True,
+        validators=[MinValueValidator(Decimal('0.01'))],
+    )
+    download_mbps = models.DecimalField(
+        max_digits=7, decimal_places=2, null=True, blank=True,
+        validators=[MinValueValidator(Decimal('0.01'))],
+    )
+
     class Meta:
         ordering = ['-created_at']
         constraints = [
@@ -115,14 +135,15 @@ class Job(models.Model):
         ).count()
 
     def missing_requirements(self):
-        """Everything still needed before this job can be submitted."""
+        """Everything still needed before this job can be submitted (old generic rules)."""
         missing = []
         if not self.has_location:
             missing.append('موقعیت مکانی')
 
-        for stage, label in JobEvidence.Category.choices:
+        for stage in JobEvidence.LEGACY_STAGES:
             if self.photo_count(stage) < 1:
-                missing.append(f'عکس {label}')
+                missing.append(f'عکس {JobEvidence.Category(stage).label}')
+
         return missing
 
     def next_step(self):
@@ -182,9 +203,31 @@ class JobEvidence(models.Model):
         VIDEO = 'video', 'ویدیو'
 
     class Category(models.TextChoices):
+        # Old generic steps (still used by the current technician flow)
         BEFORE = 'before', 'قبل'
         DURING = 'during', 'حین کار'
         AFTER = 'after', 'بعد'
+        # Photos that need no name
+        GENERAL = 'general', 'عمومی'
+        # Drop cable
+        CABLE_LOCATION = 'cable_location', 'عکس دراپ'
+        FAT = 'fat', 'عکس FAT'
+        ENTRANCE = 'entrance', 'عکس ورودی'
+        RECEIPT = 'receipt', 'عکس رسید'
+        TOKAR = 'tokar', 'عکس توکار'
+        # Fusion with a splitter
+        SPLITTER_BEFORE = 'splitter_before', 'قبل اجرای اسپلیتر'
+        SPLITTER_AFTER = 'splitter_after', 'بعد اجرای اسپلیتر'
+        CASSETTE = 'cassette', 'آرایش کاست'
+        # Service delivery
+        MOM = 'mom', 'عکس صورت جلسه'
+        PON_TEST = 'pon_test', 'عکس تست پان'
+        SPEED_TEST = 'speed_test', 'عکس تست سرعت'
+        # Videos
+        VIDEO = 'video', 'ویدیو'
+
+    # The three stages the current (old) technician flow uses
+    LEGACY_STAGES = (Category.BEFORE, Category.DURING, Category.AFTER)
 
     job = models.ForeignKey(Job, on_delete=models.CASCADE, related_name='evidence')
     kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.PHOTO)
@@ -196,6 +239,15 @@ class JobEvidence(models.Model):
     class Meta:
         ordering = ['uploaded_at']
         verbose_name_plural = 'job evidence'
+        constraints = [
+            models.CheckConstraint(
+                name='evidence_kind_matches_category',
+                condition=(
+                    models.Q(kind='video', category='video')
+                    | (models.Q(kind='photo') & ~models.Q(category='video'))
+                ),
+            ),
+        ]
 
     def __str__(self):
         return f"{self.job} - {self.category}"
@@ -216,6 +268,10 @@ class WorkReport(models.Model):
 
 
 class JobMaterialUsage(models.Model):
+    class Purpose(models.TextChoices):
+        USED = 'used', 'استفاده‌شده'
+        NEEDED = 'needed', 'مورد نیاز'
+
     job = models.ForeignKey(Job, on_delete=models.CASCADE, related_name='material_usages')
     material = models.ForeignKey(
         'inventory.Material', on_delete=models.PROTECT, related_name='usages',
@@ -228,6 +284,7 @@ class JobMaterialUsage(models.Model):
         max_digits=10, decimal_places=2,
         validators=[MinValueValidator(Decimal('0.01'))],
     )
+    purpose = models.CharField(max_length=10, choices=Purpose.choices, default=Purpose.USED)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -243,6 +300,14 @@ class JobMaterialUsage(models.Model):
             self.material_name = self.material.name
             self.unit = self.material.unit
         super().save(*args, **kwargs)
+
+    def clean(self):
+        super().clean()
+        if self.material_id and self.quantity is not None:
+            quantity = Decimal(str(self.quantity))
+            if (self.material.unit == self.material.UNIT_PIECE
+                    and quantity != quantity.to_integral_value()):
+                raise ValidationError({'quantity': 'برای این ماده فقط عدد صحیح مجاز است.'})
 
     def __str__(self):
         return f"{self.material_code} × {self.quantity}"

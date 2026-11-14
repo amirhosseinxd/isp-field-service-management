@@ -123,7 +123,10 @@ class PhotoFilterForm(forms.Form):
     job = forms.IntegerField(label='شماره کار', required=False, min_value=1)
     category = forms.ChoiceField(
         label='مرحله', required=False,
-        choices=[('', 'همه')] + JobEvidence.Category.choices,
+        choices=[('', 'همه')] + [
+            choice for choice in JobEvidence.Category.choices
+            if choice[0] != JobEvidence.Category.VIDEO
+        ],
     )
     operator = OperatorChoiceField(
         label='تکنسین', required=False, empty_label='همه', queryset=operators(),
