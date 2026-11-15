@@ -8,6 +8,9 @@ MAX_PHOTO_MB = 15
 MAX_FILES_PER_UPLOAD = 10
 MAX_PHOTOS_PER_STAGE = 20
 
+MAX_VIDEO_MB = 60
+ALLOWED_VIDEO_TYPES = {'video/mp4', 'video/quicktime', 'video/webm'}
+
 PERSIAN_DIGITS = str.maketrans('۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩', '01234567890123456789')
 
 class CoordinateField(forms.DecimalField):
@@ -76,7 +79,16 @@ class PhotoForm(forms.Form):
         return images
 
 
+class VideoForm(forms.Form):
+    video = forms.FileField(widget=forms.FileInput(attrs={'accept': 'video/*'}))
 
+    def clean_video(self):
+        video = self.cleaned_data['video']
+        if video.size > MAX_VIDEO_MB * 1024 * 1024:
+            raise forms.ValidationError(f'حجم ویدیو نباید بیشتر از {MAX_VIDEO_MB} مگابایت باشد.')
+        if video.content_type not in ALLOWED_VIDEO_TYPES:
+            raise forms.ValidationError('فرمت ویدیو پشتیبانی نمی‌شود. فرمت‌های مجاز: mp4, mov, webm.')
+        return video
 
 class ReportForm(forms.Form):
     description = forms.CharField(

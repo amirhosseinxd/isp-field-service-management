@@ -16,6 +16,9 @@ from .forms import JobFilterForm, LocationForm, PhotoFilterForm, PhotoForm, Repo
 from .models import Job
 from .models import Job, JobEvidence
 
+import os
+import re
+
 from .forms import (
     MAX_PHOTOS_PER_STAGE, JobFilterForm, LocationForm, PhotoFilterForm, PhotoForm, ReportForm,
 )
@@ -219,6 +222,66 @@ def job_photo(request, pk):
     response['Cache-Control'] = 'private, max-age=3600'
     response['X-Content-Type-Options'] = 'nosniff'
     return response
+
+
+
+
+RANGE_RE = re.compile(r'bytes=(\d*)-(\d*)')
+
+@login_required
+def job_video(request, pk):
+    """Serve a video file with HTTP range support, to the admins and the job's own operator."""
+    evidence = get_object_or_404(JobEvidence.objects.select_related('job'), pk=pk)
+    if evidence.kind != JobEvidence.Kind.VIDEO:
+        raise Http404
+    user = request.user
+    allowed = user.role == User.Role.ADMIN or evidence.job.assigned_operator_id == user.id
+    if not allowed:
+        raise Http404
+
+    try:
+        size = evidence.file.size
+    except FileNotFoundError:
+        raise Http404
+    content_type = mimetypes.guess_type(evidence.file.name)[0] or 'application/octet-stream'
+
+    range_header = request.headers.get('Range', '')
+    match = RANGE_RE.match(range_header)
+    if not match:
+        # No range requested: send the whole file, but say we support ranges
+        response = FileResponse(evidence.file.open('rb'), content_type=content_type)
+        response['Content-Length'] = size
+        response['Accept-Ranges'] = 'bytes'
+        response['Cache-Control'] = 'private, max-age=3600'
+        response['X-Content-Type-Options'] = 'nosniff'
+        return response
+
+    start_str, end_str = match.groups()
+    start = int(start_str) if start_str else 0
+    end = int(end_str) if end_str else size - 1
+    end = min(end, size - 1)
+
+    if start >= size or start > end:
+        response = FileResponse(evidence.file.open('rb'))
+        response.status_code = 416
+        response['Content-Range'] = f'bytes */{size}'
+        return response
+
+    file = evidence.file.open('rb')
+    file.seek(start)
+    length = end - start + 1
+    response = FileResponse(
+        iter(lambda: file.read(min(65536, length - file.tell() + start)) if file.tell() - start < length else b'', b''),
+        content_type=content_type,
+        status=206,
+    )
+    response['Content-Length'] = length
+    response['Content-Range'] = f'bytes {start}-{end}/{size}'
+    response['Accept-Ranges'] = 'bytes'
+    response['Cache-Control'] = 'private, max-age=3600'
+    response['X-Content-Type-Options'] = 'nosniff'
+    return response
+
 
 
 @role_required(User.Role.ADMIN)

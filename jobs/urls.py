@@ -19,6 +19,7 @@ urlpatterns = [
     path('support/jobs/<int:pk>/review/', views.support_job_review, name='support_job_review'),
     path('support/photos/', views.photo_history, name='photo_history'),
 
-    # Protected photo files (admins + the job's operator)
+    # Protected photo + video files (admins + the job's operator)
     path('photos/<int:pk>/file/', views.job_photo, name='photo_file'),
+    path('videos/<int:pk>/file/', views.job_video, name='video_file'),
 ]
