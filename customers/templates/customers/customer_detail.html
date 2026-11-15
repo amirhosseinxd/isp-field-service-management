@@ -1,0 +1,59 @@
+{% extends 'accounts/base.html' %}
+{% block title %}{{ customer.full_name }}{% endblock %}
+{% block main_class %}wide{% endblock %}
+{% block content %}
+<p><a href="{% url 'customer_list' %}">← بازگشت به فهرست مشتریان</a></p>
+
+<div class="card" style="margin-bottom:16px">
+  <h2>{{ customer.full_name }}
+    <a href="{% url 'customer_edit' customer.pk %}" style="font-size:14px">ویرایش</a>
+  </h2>
+  <p>
+    شناسه اشتراک: <span class="ltr">{{ customer.subscription_id }}</span><br>
+    موبایل: <span class="ltr">{{ customer.mobile }}</span><br>
+    آدرس: {{ customer.address }}<br>
+    شهر: {{ customer.city }}<br>
+    مرکز: <span class="ltr">{{ customer.center }}</span><br>
+    تاریخ ثبت‌نام: {{ customer.registered_at|date:"Y/m/d H:i" }}<br>
+    وضعیت: <span class="badge">{{ customer.current_status_display }}</span>
+  </p>
+</div>
+
+<div class="card" style="margin-bottom:16px">
+  <h3>کارهای این مشتری</h3>
+  {% for job in jobs %}
+    <p>
+      <a href="{% url 'support_job_detail' job.pk %}">کار {{ job.pk }}</a>
+      — {{ job.get_job_type_display }} / {{ job.get_workflow_display }}
+      <span class="badge">{{ job.get_status_display }}</span>
+    </p>
+  {% empty %}
+    <p class="hint">هنوز کاری برای این مشتری ثبت نشده است.</p>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <h3>آرشیو مدیا</h3>
+  <div class="photo-grid big">
+    {% for item in page %}
+      <figure>
+        {% if item.kind == 'photo' %}
+          <a href="{% url 'photo_file' item.pk %}" target="_blank" rel="noopener">
+            <img src="{% url 'photo_file' item.pk %}" alt="" loading="lazy">
+          </a>
+        {% else %}
+          <video src="{% url 'video_file' item.pk %}" controls preload="metadata"></video>
+        {% endif %}
+        <figcaption>
+          <a href="{% url 'support_job_detail' item.job_id %}">کار {{ item.job_id }}</a>
+          — {{ item.get_category_display }}<br>
+          {{ item.uploaded_at|date:"Y/m/d H:i" }}
+        </figcaption>
+      </figure>
+    {% empty %}
+      <p class="hint">مدیایی برای این مشتری ثبت نشده است.</p>
+    {% endfor %}
+  </div>
+  {% include 'jobs/_pagination.html' %}
+</div>
+{% endblock %}
