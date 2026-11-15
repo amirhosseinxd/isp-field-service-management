@@ -72,6 +72,14 @@ class Job(models.Model):
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='jobs_created',
     )
+
+
+    customer = models.ForeignKey(
+        'customers.Customer', on_delete=models.PROTECT,
+        null=True, blank=True, related_name='jobs',
+    )
+
+    
     created_at = models.DateTimeField(auto_now_add=True)
 
     submitted_at = models.DateTimeField(null=True, blank=True)

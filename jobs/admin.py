@@ -25,8 +25,8 @@ class JobMaterialUsageInline(admin.TabularInline):
 
 @admin.register(Job)
 class JobAdmin(admin.ModelAdmin):
-    list_display = ('id', 'job_type', 'workflow', 'assigned_operator', 'status', 'created_at', 'submitted_at')
-    list_filter = ('job_type', 'workflow', 'status', 'assigned_operator')
+    list_display = ('id', 'job_type', 'workflow', 'customer', 'assigned_operator', 'status', 'created_at', 'submitted_at')
+    list_filter = ('job_type', 'workflow', 'status', 'assigned_operator', 'customer')
     inlines = [JobEvidenceInline, JobMaterialUsageInline, WorkReportInline]
 
     def save_model(self, request, obj, form, change):
