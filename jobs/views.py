@@ -299,6 +299,8 @@ def support_dashboard(request):
             jobs = jobs.filter(status=cd['status'])
         if cd['job_type']:
             jobs = jobs.filter(job_type=cd['job_type'])
+        if cd['workflow']:
+            jobs = jobs.filter(workflow=cd['workflow'])
         if cd['operator']:
             jobs = jobs.filter(assigned_operator=cd['operator'])
         if cd['date_from']:

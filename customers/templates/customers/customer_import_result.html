@@ -1,0 +1,23 @@
+{% extends 'accounts/base.html' %}
+{% block title %}نتیجه ورود اطلاعات{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>نتیجه ورود اطلاعات</h2>
+  <p>مشتریان جدید: {{ summary.created }}</p>
+  <p>مشتریان به‌روزرسانی‌شده: {{ summary.updated }}</p>
+  <p class="hint">شماره‌های موبایل تکراری در کل سیستم: {{ summary.duplicate_mobile_count }} مورد</p>
+
+  {% if summary.errors %}
+    <h3>ردیف‌های دارای خطا ({{ summary.errors|length }})</h3>
+    <ul>
+      {% for row_number, message in summary.errors %}
+        <li>سطر {{ row_number }}: {{ message }}</li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="hint">خطایی ثبت نشد.</p>
+  {% endif %}
+
+  <a href="{% url 'customer_list' %}" class="btn">مشاهده فهرست مشتریان</a>
+</div>
+{% endblock %}

@@ -1,6 +1,6 @@
 
 from django.contrib import messages
-from django.db.models import Q
+from django.db.models import Q,Count
 from django.shortcuts import get_object_or_404, redirect, render
 
 from accounts.models import User
@@ -8,8 +8,11 @@ from accounts.permissions import role_required
 from jobs.models import JobEvidence
 from jobs.views import paginate
 
-from .forms import CustomerFilterForm, CustomerForm
+from .forms import CustomerFilterForm, CustomerForm, ExcelUploadForm
 from .models import Customer
+
+import openpyxl
+from .imports import import_rows,COLUMNS
 
 
 def _warn_if_duplicate_mobile(request, customer):
@@ -52,6 +55,37 @@ def customer_create(request):
     return render(request, 'customers/customer_form.html', {'form': form, 'is_new': True})
 
 
+
+@role_required(User.Role.ADMIN)
+def customer_import(request):
+    form = ExcelUploadForm(request.POST or None, request.FILES or None)
+    if request.method == 'POST' and form.is_valid():
+        try:
+            workbook = openpyxl.load_workbook(form.cleaned_data['excel_file'], data_only=True)
+        except Exception:
+            form.add_error('excel_file', 'فایل اکسل قابل خواندن نیست.')
+        else:
+            sheet = workbook.active
+            rows = (
+                (row_number, {
+                    key: sheet[f'{letter}{row_number}'].value
+                    for key, letter in COLUMNS.items()
+                })
+                for row_number in range(2, sheet.max_row + 1)
+            )
+            summary = import_rows(rows)
+            summary['duplicate_mobile_count'] = (
+                Customer.objects.exclude(mobile='')
+                .values('mobile')
+                .annotate(n=Count('id'))
+                .filter(n__gt=1)
+                .count()
+            )
+            return render(request, 'customers/customer_import_result.html', {'summary': summary})
+
+    return render(request, 'customers/customer_import.html', {'form': form})
+
+
 @role_required(User.Role.ADMIN)
 def customer_edit(request, pk):
     customer = get_object_or_404(Customer, pk=pk)
@@ -72,7 +106,7 @@ def customer_detail(request, pk):
     jobs = customer.jobs.order_by('-created_at')
     media = (
         JobEvidence.objects.filter(job__customer=customer)
-        .select_related('job')
+        .select_related('job', 'uploaded_by')
         .order_by('-uploaded_at')
     )
     page, qs = paginate(request, media, 24)

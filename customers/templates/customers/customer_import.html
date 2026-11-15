@@ -1,0 +1,18 @@
+{% extends 'accounts/base.html' %}
+{% block title %}ورود اطلاعات از اکسل{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>ورود مشتریان از فایل اکسل</h2>
+    <p class="hint">
+    ستون‌ها باید ثابت باشند: C) شناسه اشتراک، D) نام، F) موبایل، G) آدرس،
+    P) شهر، Q) مرکز، AA) تاریخ ثبت‌نام (به وقت و تاریخ شمسی)، AD) وضعیت.
+    سطر اول نادیده گرفته می‌شود.
+  </p>
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {{ form.excel_file.errors }}
+    {{ form.excel_file }}
+    <button type="submit" class="btn">بارگذاری</button>
+  </form>
+</div>
+{% endblock %}

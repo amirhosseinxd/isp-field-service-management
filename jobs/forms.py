@@ -3,6 +3,7 @@ from decimal import Decimal, InvalidOperation
 from .models import Job, JobEvidence
 from accounts.models import User
 
+from accounts.jalali_forms import JalaliDateField
 
 MAX_PHOTO_MB = 15
 MAX_FILES_PER_UPLOAD = 10
@@ -115,20 +116,18 @@ class JobFilterForm(forms.Form):
         choices=[('', 'همه')] + Job.Status.choices,
     )
     job_type = forms.ChoiceField(
-        label='نوع کار', required=False,
+        label='دسته اصلی', required=False,
         choices=[('', 'همه')] + Job.JobType.choices,
+    )
+    workflow = forms.ChoiceField(
+        label='نوع کار', required=False,
+        choices=[('', 'همه')] + Job.Workflow.choices,
     )
     operator = OperatorChoiceField(
         label='تکنسین', required=False, empty_label='همه', queryset=operators(),
     )
-    date_from = forms.DateField(
-        label='ارسال از تاریخ', required=False,
-        widget=forms.DateInput(attrs={'type': 'date'}),
-    )
-    date_to = forms.DateField(
-        label='ارسال تا تاریخ', required=False,
-        widget=forms.DateInput(attrs={'type': 'date'}),
-    )
+    date_from = JalaliDateField(label='ارسال از تاریخ', required=False)
+    date_to = JalaliDateField(label='ارسال تا تاریخ', required=False)
 
 
 class PhotoFilterForm(forms.Form):
@@ -143,11 +142,5 @@ class PhotoFilterForm(forms.Form):
     operator = OperatorChoiceField(
         label='تکنسین', required=False, empty_label='همه', queryset=operators(),
     )
-    date_from = forms.DateField(
-        label='آپلود از تاریخ', required=False,
-        widget=forms.DateInput(attrs={'type': 'date'}),
-    )
-    date_to = forms.DateField(
-        label='آپلود تا تاریخ', required=False,
-        widget=forms.DateInput(attrs={'type': 'date'}),
-    )
+    date_from = JalaliDateField(label='آپلود از تاریخ', required=False)
+    date_to = JalaliDateField(label='آپلود تا تاریخ', required=False)

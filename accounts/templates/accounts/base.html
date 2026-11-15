@@ -12,6 +12,7 @@
     header form { margin: 0; }
     main { max-width: 480px; margin: 24px auto; padding: 0 16px; }
     main.wide { max-width: 1100px; }
+    main.wide { font-size: 14px; }
     .card { background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,.1); }
     input { width: 100%; padding: 12px; margin: 6px 0 14px; font-size: 16px; box-sizing: border-box; }
     .ltr { direction: ltr; text-align: left; }
@@ -58,7 +59,7 @@
 
     .table-wrap { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; }
-    th, td { padding: 10px 12px; border-bottom: 1px solid #eee; text-align: start; white-space: nowrap; }
+    th, td { padding: 6px 10px; border-bottom: 1px solid #eee; text-align: start; white-space: nowrap; font-size: 14px; }
     th { background: #f0f2f5; }
 
     .pager { display: flex; justify-content: center; align-items: center; gap: 16px; margin: 20px 0; }
@@ -71,7 +72,16 @@
     .photo-grid figure { margin: 0; }
 
     .photo-grid video { width: 100%; border-radius: 8px; background: #000; }
+
+    .jalali-field-wrap { position: relative; display: block; }
+    .jalali-field-wrap input { padding-left: 40px; }
+    .jalali-icon-btn {
+           position: absolute; left: 4px; top: 50%; transform: translateY(-50%);
+           width: 32px; height: 32px; border: 0; background: transparent; font-size: 18px;
+           cursor: pointer; padding: 0;
+           }
   </style>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/persian-datepicker@1.2.0/dist/css/persian-datepicker.min.css">
 </head>
 <body>
     {% if user.is_authenticated %}
@@ -96,5 +106,42 @@
   {% endfor %}
   {% block content %}{% endblock %}
 </main>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/persian-date@1.1.0/dist/persian-date.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/persian-datepicker@1.2.0/dist/js/persian-datepicker.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  if (!window.jQuery || !jQuery.fn.pDatepicker) return;
+
+  function enhance(selector, format, withTime) {
+    document.querySelectorAll(selector).forEach(function (input) {
+      if (input.dataset.jalaliReady) return;
+      input.dataset.jalaliReady = '1';
+
+      var wrap = document.createElement('span');
+      wrap.className = 'jalali-field-wrap';
+      input.parentNode.insertBefore(wrap, input);
+      wrap.appendChild(input);
+
+      var icon = document.createElement('button');
+      icon.type = 'button';
+      icon.className = 'jalali-icon-btn';
+      icon.setAttribute('aria-label', 'انتخاب تاریخ');
+      icon.textContent = '📅';
+      wrap.appendChild(icon);
+      icon.addEventListener('click', function () { input.focus(); });
+
+      var options = { format: format, autoClose: true, initialValue: false };
+      if (withTime) {
+        options.timePicker = { enabled: true };
+      }
+      jQuery(input).pDatepicker(options);
+    });
+  }
+
+  enhance('.jalali-date', 'YYYY/MM/DD', false);
+  enhance('.jalali-datetime', 'YYYY/MM/DD HH:mm', true);
+});
+</script>
 </body>
 </html>

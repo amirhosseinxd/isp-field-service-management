@@ -1,10 +1,14 @@
 {% extends 'accounts/base.html' %}
+{% load jalali_tags %}
 {% block title %}مشتریان{% endblock %}
 {% block main_class %}wide{% endblock %}
 {% block content %}
 <h2>مشتریان
   <a href="{% url 'customer_create' %}" class="btn" style="display:inline-block;width:auto;padding:8px 14px;">
     + مشتری جدید
+  </a>
+  <a href="{% url 'customer_import' %}" class="btn" style="display:inline-block;width:auto;padding:8px 14px;">
+    ورود از اکسل
   </a>
 </h2>
 
@@ -30,11 +34,11 @@
       {% for c in page %}
         <tr>
           <td class="ltr">{{ c.subscription_id }}</td>
-          <td>{{ c.full_name }}</td>
+          <td><a href="{% url 'customer_detail' c.pk %}">{{ c.full_name }}</a></td>
           <td class="ltr">{{ c.mobile }}</td>
           <td>{{ c.city }}</td>
           <td class="ltr">{{ c.center }}</td>
-          <td>{{ c.registered_at|date:"Y/m/d H:i" }}</td>
+          <td>{{ c.registered_at|jalali }}</td>
           <td>{{ c.current_status_display }}</td>
           <td><a href="{% url 'customer_detail' c.pk %}">مشاهده</a></td>
         </tr>

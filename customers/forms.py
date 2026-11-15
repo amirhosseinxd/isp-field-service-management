@@ -2,14 +2,10 @@ from django import forms
 from django.db.models import Q
 
 from .models import City, Customer
-
+from accounts.jalali_forms import JalaliDateTimeField
 
 class CustomerForm(forms.ModelForm):
-    registered_at = forms.DateTimeField(
-        label='تاریخ و ساعت ثبت‌نام',
-        widget=forms.DateTimeInput(attrs={'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),
-        input_formats=['%Y-%m-%dT%H:%M'],
-    )
+    registered_at = JalaliDateTimeField(label='تاریخ و ساعت ثبت‌نام')
 
     class Meta:
         model = Customer
@@ -40,3 +36,16 @@ class CustomerFilterForm(forms.Form):
     city = forms.ModelChoiceField(
         label='شهر', queryset=City.objects.all(), required=False, empty_label='همه',
     )
+
+
+
+
+
+class ExcelUploadForm(forms.Form):
+    excel_file = forms.FileField(label='فایل اکسل (.xlsx)')
+
+    def clean_excel_file(self):
+        file = self.cleaned_data['excel_file']
+        if not file.name.lower().endswith('.xlsx'):
+            raise forms.ValidationError('فقط فایل‌های با پسوند xlsx پذیرفته می‌شود.')
+        return file

@@ -34,7 +34,7 @@ class Customer(models.Model):
     registered_at = models.DateTimeField()
 
     # Shown only until this customer has a job of their own (see current_status_display)
-    status_label = models.CharField(max_length=100, blank=True)
+    status_label = models.CharField(max_length=255, blank=True)
 
     class Meta:
         ordering = ['-registered_at']

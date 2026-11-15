@@ -1,4 +1,5 @@
 {% extends 'accounts/base.html' %}
+{% load jalali_tags %}
 {% block title %}کارهای من{% endblock %}
 {% block content %}
 <h2>کارهای من</h2>
@@ -6,7 +7,7 @@
   <a class="card" href="{% url 'job_start' job.pk %}">
     <strong>کار شماره {{ job.pk }} — {{ job.get_job_type_display }}</strong>
     <span class="badge">{{ job.get_status_display }}</span>
-    <div class="hint">{{ job.created_at|date:"Y/m/d H:i" }}</div>
+    <div class="hint">{{ job.created_at|jalali }}</div>
   </a>
 {% empty %}
   <div class="card"><p>فعلاً کار فعالی ندارید.</p></div>

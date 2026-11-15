@@ -1,5 +1,6 @@
 {% extends 'accounts/base.html' %}
 {% load l10n %}
+{% load jalali_tags %}
 {% block title %}کار شماره {{ job.pk }}{% endblock %}
 {% block main_class %}wide{% endblock %}
 {% block content %}
@@ -10,11 +11,11 @@
     <span class="badge">{{ job.get_status_display }}</span></h2>
   <p>
     تکنسین: {{ job.assigned_operator.get_full_name|default:job.assigned_operator.username }}<br>
-    ایجاد: {{ job.created_at|date:"Y/m/d H:i" }}
+    ایجاد: {{ job.created_at|jalali }}
       ({{ job.created_by.get_full_name|default:job.created_by.username }})<br>
-    ارسال: {{ job.submitted_at|date:"Y/m/d H:i"|default:"—" }}<br>
+    ارسال: {{ job.submitted_at|jalali|default:"—" }}<br>
     {% if job.reviewed_at %}
-      بررسی: {{ job.reviewed_at|date:"Y/m/d H:i" }}
+      بررسی: {{ job.reviewed_at|jalali }}
       ({{ job.reviewed_by.get_full_name|default:job.reviewed_by.username }})
     {% endif %}
   </p>
@@ -44,7 +45,7 @@
   <h3>گزارش</h3>
   {% if report %}
     <p style="white-space: pre-wrap">{{ report.description }}</p>
-    <p class="hint">ثبت‌شده در {{ report.submitted_at|date:"Y/m/d H:i" }}</p>
+    <p class="hint">ثبت‌شده در {{ report.submitted_at|jalali }}</p>
   {% else %}
     <p>هنوز گزارشی ثبت نشده است.</p>
   {% endif %}
@@ -60,7 +61,7 @@
             <a href="{% url 'photo_file' p.pk %}" target="_blank" rel="noopener">
               <img src="{% url 'photo_file' p.pk %}" alt="" loading="lazy">
             </a>
-            <figcaption>{{ p.uploaded_at|date:"Y/m/d H:i" }}</figcaption>
+            <figcaption>{{ p.uploaded_at|jalali }}</figcaption>
           </figure>
         {% endfor %}
       </div>
