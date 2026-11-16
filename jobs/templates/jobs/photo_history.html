@@ -18,18 +18,24 @@
 <div class="photo-grid big">
   {% for p in page %}
     <figure>
-      <a href="{% url 'photo_file' p.pk %}" target="_blank" rel="noopener">
-        <img src="{% url 'photo_file' p.pk %}" alt="" loading="lazy">
-      </a>
+      {% if p.kind == 'video' %}
+        <video src="{% url 'video_file' p.pk %}" controls preload="metadata"
+               style="width:100%;background:#000;border-radius:8px"></video>
+      {% else %}
+        <a href="{% url 'photo_file' p.pk %}" target="_blank" rel="noopener">
+          <img src="{% url 'photo_file' p.pk %}" alt="" loading="lazy">
+        </a>
+      {% endif %}
       <figcaption>
         <a href="{% url 'support_job_detail' p.job_id %}">کار {{ p.job_id }}</a>
         — {{ p.get_category_display }}<br>
-        {{ p.job.assigned_operator.get_full_name|default:p.job.assigned_operator.username }}<br>
+        {% if p.job.customer %}مشترک: {{ p.job.customer.full_name }}<br>{% endif %}
+        تکنسین: {{ p.job.assigned_operator.get_full_name|default:p.job.assigned_operator.username }}<br>
         {{ p.uploaded_at|jalali }}
       </figcaption>
     </figure>
   {% empty %}
-    <p>عکسی پیدا نشد.</p>
+    <p>موردی پیدا نشد.</p>
   {% endfor %}
 </div>
 

@@ -21,7 +21,7 @@
   <table>
     <thead>
       <tr>
-        <th>شماره</th><th>نوع</th><th>تکنسین</th><th>وضعیت</th>
+        <th>شماره</th><th>نوع</th><th>مشترک</th><th>تکنسین</th><th>وضعیت</th>
         <th>زمان ارسال</th><th>عکس‌ها</th><th></th>
       </tr>
     </thead>
@@ -30,6 +30,15 @@
         <tr>
           <td>{{ job.pk }}</td>
           <td>{{ job.get_job_type_display }} — {{ job.get_workflow_display }}</td>
+          
+          <td>
+            {% if job.customer %}
+              <a href="{% url 'customer_detail' job.customer.pk %}">{{ job.customer.full_name }}</a>
+            {% else %}
+              <span class="hint">—</span>
+            {% endif %}
+          </td>
+
           <td>{{ job.assigned_operator.get_full_name|default:job.assigned_operator.username }}</td>
           <td><span class="badge">{{ job.get_status_display }}</span></td>
           <td>{{ job.submitted_at|jalali|default:"—" }}</td>
@@ -37,7 +46,7 @@
           <td><a href="{% url 'support_job_detail' job.pk %}">مشاهده</a></td>
         </tr>
       {% empty %}
-        <tr><td colspan="7">موردی پیدا نشد.</td></tr>
+        <tr><td colspan="8">موردی پیدا نشد.</td></tr>
       {% endfor %}
     </tbody>
   </table>

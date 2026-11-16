@@ -127,25 +127,28 @@ class JobFilterForm(forms.Form):
     operator = OperatorChoiceField(
         label='تکنسین', required=False, empty_label='همه', queryset=operators(),
     )
+    customer_q = forms.CharField(
+        label='جستجوی مشترک (نام یا شناسه)', required=False,
+    )
     date_from = JalaliDateField(label='ارسال از تاریخ', required=False)
     date_to = JalaliDateField(label='ارسال تا تاریخ', required=False)
 
 
 class PhotoFilterForm(forms.Form):
     job = forms.IntegerField(label='شماره کار', required=False, min_value=1)
+    kind = forms.ChoiceField(
+        label='نوع فایل', required=False,
+        choices=[('', 'همه')] + JobEvidence.Kind.choices,
+    )
     category = forms.ChoiceField(
         label='مرحله', required=False,
-        choices=[('', 'همه')] + [
-            choice for choice in JobEvidence.Category.choices
-            if choice[0] != JobEvidence.Category.VIDEO
-        ],
+        choices=[('', 'همه')] + JobEvidence.Category.choices,
     )
     operator = OperatorChoiceField(
         label='تکنسین', required=False, empty_label='همه', queryset=operators(),
     )
     date_from = JalaliDateField(label='آپلود از تاریخ', required=False)
     date_to = JalaliDateField(label='آپلود تا تاریخ', required=False)
-
 
 
 YES_NO_CHOICES = [('True', 'بله'), ('False', 'خیر')]

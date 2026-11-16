@@ -3,7 +3,7 @@ from django.contrib import messages
 import mimetypes
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import Count, F
+from django.db.models import Count, F, Q
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -476,7 +476,7 @@ def support_dashboard(request):
     # With no filters in the URL, show submitted jobs (the review queue)
     form = JobFilterForm(request.GET or {'status': Job.Status.SUBMITTED})
     jobs = (
-        Job.objects.select_related('assigned_operator')
+        Job.objects.select_related('assigned_operator', 'customer')
         .annotate(photo_total=Count('evidence'))
         .order_by(F('submitted_at').desc(nulls_last=True), '-created_at')
     )
@@ -490,6 +490,11 @@ def support_dashboard(request):
             jobs = jobs.filter(workflow=cd['workflow'])
         if cd['operator']:
             jobs = jobs.filter(assigned_operator=cd['operator'])
+        if cd['customer_q']:
+            q = cd['customer_q']
+            jobs = jobs.filter(
+                Q(customer__full_name__icontains=q) | Q(customer__subscription_id__icontains=q)
+            )
         if cd['date_from']:
             jobs = jobs.filter(submitted_at__date__gte=cd['date_from'])
         if cd['date_to']:
@@ -558,28 +563,29 @@ def job_return(request, pk):
 @role_required(User.Role.ADMIN)
 def photo_history(request):
     form = PhotoFilterForm(request.GET or None)
-    photos = (
-        JobEvidence.objects.filter(kind=JobEvidence.Kind.PHOTO)
-        .select_related('job', 'job__assigned_operator')
+    media = (
+        JobEvidence.objects.select_related(
+            'job', 'job__assigned_operator', 'job__customer',
+        )
         .order_by('-uploaded_at')
     )
     if form.is_valid():
         cd = form.cleaned_data
         if cd['job']:
-            photos = photos.filter(job_id=cd['job'])
+            media = media.filter(job_id=cd['job'])
+        if cd['kind']:
+            media = media.filter(kind=cd['kind'])
         if cd['category']:
-            photos = photos.filter(category=cd['category'])
+            media = media.filter(category=cd['category'])
         if cd['operator']:
-            photos = photos.filter(job__assigned_operator=cd['operator'])
+            media = media.filter(job__assigned_operator=cd['operator'])
         if cd['date_from']:
-            photos = photos.filter(uploaded_at__date__gte=cd['date_from'])
+            media = media.filter(uploaded_at__date__gte=cd['date_from'])
         if cd['date_to']:
-            photos = photos.filter(uploaded_at__date__lte=cd['date_to'])
+            media = media.filter(uploaded_at__date__lte=cd['date_to'])
 
-    page, qs = paginate(request, photos, 24)
+    page, qs = paginate(request, media, 24)
     return render(request, 'jobs/photo_history.html', {'form': form, 'page': page, 'qs': qs})
-
-
 
 
 
