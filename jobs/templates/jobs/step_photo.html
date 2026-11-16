@@ -1,0 +1,51 @@
+{% extends 'accounts/base.html' %}
+{% block title %}{{ step.key }}{% endblock %}
+{% block content %}
+{% include 'jobs/_stepper.html' %}
+<div class="card">
+  <h2>{{ step.key }}</h2>
+  <p class="hint">
+    {% if step.kind == 'video' %}ویدیو{% else %}عکس{% endif %}
+    — حداقل {{ step.minimum }}{% if step.maximum %} و حداکثر {{ step.maximum }}{% endif %}
+    · تعداد فعلی: {{ count }}
+  </p>
+
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    {% for field in form %}
+      {{ field.errors }}
+      {{ field }}
+    {% endfor %}
+    <button type="submit" class="btn">آپلود</button>
+  </form>
+
+  {% if items %}
+    <div class="photo-grid">
+      {% for item in items %}
+        <figure>
+          {% if step.kind == 'video' %}
+            <video src="{% url 'video_file' item.pk %}" controls preload="metadata"></video>
+          {% else %}
+            <img src="{% url 'photo_file' item.pk %}" alt="" loading="lazy">
+          {% endif %}
+          <form method="post"
+                action="{% url 'job_evidence_delete' job.pk index item.pk %}"
+                onsubmit="return confirm('این مورد حذف شود؟');">
+            {% csrf_token %}
+            <button type="submit" class="danger small">حذف</button>
+          </form>
+        </figure>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {% if complete %}
+    <a class="btn" href="{{ next_url }}">مرحله بعد</a>
+  {% else %}
+    <span class="btn disabled">
+      {% if step.kind == 'video' %}حداقل {{ step.minimum }} ویدیو{% else %}حداقل {{ step.minimum }} عکس{% endif %} لازم است
+    </span>
+  {% endif %}
+</div>
+{% endblock %}

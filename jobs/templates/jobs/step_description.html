@@ -1,0 +1,21 @@
+{% extends 'accounts/base.html' %}
+{% block title %}ارسال کار{% endblock %}
+{% block content %}
+{% include 'jobs/_stepper.html' %}
+<div class="card">
+  <h2>توضیحات و ارسال</h2>
+  {% if missing %}
+    <p class="error">موارد زیر هنوز کامل نیستند:</p>
+    <ul>
+      {% for item in missing %}<li>{{ item }}</li>{% endfor %}
+    </ul>
+  {% endif %}
+  <form method="post" onsubmit="this.querySelector('button').disabled = true;">
+    {% csrf_token %}
+    {{ form.description.errors }}
+    <label>توضیحات کار انجام‌شده</label>
+    {{ form.description }}
+    <button type="submit" class="btn" {% if missing %}disabled{% endif %}>ارسال نهایی</button>
+  </form>
+</div>
+{% endblock %}

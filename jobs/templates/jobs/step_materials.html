@@ -1,0 +1,33 @@
+{% extends 'accounts/base.html' %}
+{% block title %}{{ step.key }}{% endblock %}
+{% block content %}
+{% include 'jobs/_stepper.html' %}
+<div class="card">
+  <h2>{{ step.key }}</h2>
+  <p class="hint">
+    {% if step.purpose == 'needed' %}
+      متریال مورد نیاز برای این کار را انتخاب کنید.
+    {% else %}
+      متریال مصرف‌شده را انتخاب کنید و مقدار هر کدام را وارد کنید.
+    {% endif %}
+  </p>
+
+  <form method="post">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    {% for material, select, qty in form.rows %}
+      <div class="material-row">
+        <label class="choice">{{ select }} {{ material.name }}
+          <span class="hint">({{ material.unit }})</span>
+        </label>
+        <div class="qty">{{ qty.errors }}{{ qty }}</div>
+      </div>
+    {% endfor %}
+    <button type="submit" class="btn">ثبت</button>
+  </form>
+
+  {% if complete %}
+    <a class="btn" href="{{ next_url }}">مرحله بعد</a>
+  {% endif %}
+</div>
+{% endblock %}

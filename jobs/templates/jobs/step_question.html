@@ -1,0 +1,21 @@
+{% extends 'accounts/base.html' %}
+{% block title %}{{ step.key }}{% endblock %}
+{% block content %}
+{% include 'jobs/_stepper.html' %}
+<div class="card">
+  <h2>{{ step.key }}</h2>
+  <p class="hint">کار شماره {{ job.pk }} — {{ job.get_workflow_display }}</p>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.answer.errors }}
+    {% if form.answer.field.widget.input_type == 'radio' %}
+      {% for radio in form.answer %}
+        <label class="choice">{{ radio.tag }} {{ radio.choice_label }}</label>
+      {% endfor %}
+    {% else %}
+      {{ form.answer }}
+    {% endif %}
+    <button type="submit" class="btn">ادامه</button>
+  </form>
+</div>
+{% endblock %}

@@ -167,20 +167,34 @@ class Job(models.Model):
 
     @transaction.atomic
     def submit(self, user, description):
-        if self.assigned_operator_id != user.id:
-            raise PermissionError('Only the assigned operator can submit this job.')
-        if self.status in (self.Status.SUBMITTED, self.Status.REVIEWED):
-            raise ValueError('This job was already submitted.')
-        missing = self.missing_requirements()
-        if missing:
-            raise ValueError('Missing: ' + ', '.join(missing))
-        if not description.strip():
-            raise ValueError('A description is required.')
+        # Imported here, not at the top of the file: workflows.py imports this module,
+        # and a top-level import in both files would loop forever.
+        from . import workflows
 
-        WorkReport.objects.create(job=self, description=description.strip(), submitted_by=user)
+        if self.assigned_operator_id != user.id:
+            raise PermissionError('فقط تکنسین تخصیص‌یافته می‌تواند این کار را ارسال کند.')
+        if self.status in (self.Status.SUBMITTED, self.Status.REVIEWED):
+            raise ValueError('این کار قبلاً ارسال شده است.')
+        if not description.strip():
+            raise ValueError('توضیحات کار الزامی است.')
+
+        # Save the report first, so the registry's description check passes
+        report, _ = WorkReport.objects.update_or_create(
+            job=self,
+            defaults={'description': description.strip(), 'submitted_by': user},
+        )
+        self.report = report
+
+        missing = workflows.missing_requirements(self)
+        if missing:
+            # Raising inside @transaction.atomic undoes the report save too
+            raise ValueError('این کار هنوز کامل نیست: ' + '، '.join(missing))
+
         self.status = self.Status.SUBMITTED
         self.submitted_at = timezone.now()
         self.save(update_fields=['status', 'submitted_at'])
+
+
 
     def mark_reviewed(self, user):
         now = timezone.now()  # one timestamp, used for both the database and this object

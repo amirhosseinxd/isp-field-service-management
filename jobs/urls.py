@@ -12,6 +12,9 @@ urlpatterns = [
     path('jobs/<int:pk>/photos/<str:stage>/', views.job_photos, name='job_photos'),
     path('jobs/<int:pk>/report/', views.job_report, name='job_report'),
     path('jobs/<int:pk>/photos/<int:photo_pk>/delete/', views.job_photo_delete, name='job_photo_delete'),
+    path('jobs/<int:pk>/step/<int:index>/', views.job_step, name='job_step'),
+    path('jobs/<int:pk>/step/<int:index>/evidence/<int:evidence_pk>/delete/',
+         views.job_evidence_delete, name='job_evidence_delete'),
 
     # Support
     path('support/', views.support_dashboard, name='support_dashboard'),

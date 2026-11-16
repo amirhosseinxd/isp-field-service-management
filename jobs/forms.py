@@ -3,6 +3,7 @@ from decimal import Decimal, InvalidOperation
 from .models import Job, JobEvidence
 from accounts.models import User
 
+from inventory.models import Material
 from accounts.jalali_forms import JalaliDateField
 
 MAX_PHOTO_MB = 15
@@ -144,3 +145,79 @@ class PhotoFilterForm(forms.Form):
     )
     date_from = JalaliDateField(label='آپلود از تاریخ', required=False)
     date_to = JalaliDateField(label='آپلود تا تاریخ', required=False)
+
+
+
+YES_NO_CHOICES = [('True', 'بله'), ('False', 'خیر')]
+
+
+class YesNoQuestionForm(forms.Form):
+    answer = forms.TypedChoiceField(
+        label='پاسخ', choices=YES_NO_CHOICES,
+        coerce=lambda value: value == 'True',
+        widget=forms.RadioSelect,
+    )
+
+
+class FtthOutcomeForm(forms.Form):
+    answer = forms.ChoiceField(
+        label='نتیجه', choices=Job.FtthOutcome.choices, widget=forms.RadioSelect,
+    )
+
+
+class SpeedQuestionForm(forms.Form):
+    answer = forms.DecimalField(
+        label='سرعت (Mbps)', min_value=Decimal('0.01'),
+        max_digits=7, decimal_places=2,
+        widget=forms.TextInput(attrs={'class': 'ltr', 'inputmode': 'decimal'}),
+    )
+
+
+
+
+class MaterialsSelectionForm(forms.Form):
+    """One checkbox and one quantity box per allowed material, built at runtime."""
+
+    def __init__(self, *args, materials, step, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.step = step
+        self.materials = list(materials)
+        self.selected = []
+        for m in self.materials:
+            self.fields[f'select_{m.code}'] = forms.BooleanField(required=False, label=m.name)
+            mode = 'decimal' if m.unit == Material.UNIT_METER else 'numeric'
+            self.fields[f'qty_{m.code}'] = forms.DecimalField(
+                required=False, min_value=Decimal('0.01'),
+                max_digits=10, decimal_places=2,
+                widget=forms.TextInput(attrs={
+                    'class': 'ltr', 'inputmode': mode, 'placeholder': m.unit,
+                }),
+                label=m.name,
+            )
+
+    @property
+    def rows(self):
+        """(material, checkbox, quantity) for each material, for the template loop."""
+        return [(m, self[f'select_{m.code}'], self[f'qty_{m.code}']) for m in self.materials]
+
+    def clean(self):
+        cleaned = super().clean()
+        selected = []
+        for m in self.materials:
+            if not cleaned.get(f'select_{m.code}'):
+                continue
+            quantity = cleaned.get(f'qty_{m.code}')
+            if quantity is None:
+                self.add_error(f'qty_{m.code}', f'مقدار {m.name} را وارد کنید.')
+                continue
+            if m.unit == Material.UNIT_PIECE and quantity != quantity.to_integral_value():
+                self.add_error(f'qty_{m.code}', 'برای این ماده فقط عدد صحیح مجاز است.')
+                continue
+            selected.append((m, quantity))
+
+        self.selected = selected
+        if not self.errors:
+            problem = self.step.problem([m.code for m, _ in selected])
+            if problem:
+                raise forms.ValidationError(problem)
+        return cleaned

@@ -8,13 +8,18 @@ from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
-
+from django.db import transaction
+from inventory.models import Material
 from accounts.models import User
 from accounts.permissions import role_required
 
-from .forms import JobFilterForm, LocationForm, PhotoFilterForm, PhotoForm, ReportForm
-from .models import Job
-from .models import Job, JobEvidence
+from . import wizard, workflows
+from .forms import (
+    MAX_PHOTOS_PER_STAGE, FtthOutcomeForm, JobFilterForm, LocationForm, MaterialsSelectionForm,
+    PhotoFilterForm, PhotoForm, ReportForm, SpeedQuestionForm, VideoForm, YesNoQuestionForm,
+)
+
+from .models import Job, JobEvidence, JobMaterialUsage
 
 import os
 import re
@@ -89,18 +94,24 @@ def operator_home(request):
 @role_required(User.Role.OPERATOR)
 def job_start(request, pk):
     job = get_operator_job(request, pk)
-    blocked = guard_step(request, job, 'location')
-    if blocked:
-        return blocked
-    return redirect(step_url(job, job.next_step()))
+    if job.status in CLOSED:
+        messages.info(request, 'این کار قبلاً ارسال شده است.')
+        return redirect('operator_home')
+    if job.status == Job.Status.ASSIGNED:
+        job.status = Job.Status.IN_PROGRESS
+        job.save(update_fields=['status'])
+    return redirect(wizard.next_url(job))
 
 
 @role_required(User.Role.OPERATOR)
 def job_location(request, pk):
     job = get_operator_job(request, pk)
-    blocked = guard_step(request, job, 'location')
-    if blocked:
-        return blocked
+    if job.status in CLOSED:
+        messages.info(request, 'این کار قبلاً ارسال شده است.')
+        return redirect('operator_home')
+    if job.status == Job.Status.ASSIGNED:
+        job.status = Job.Status.IN_PROGRESS
+        job.save(update_fields=['status'])
 
     form = LocationForm(
         request.POST or None,
@@ -115,11 +126,185 @@ def job_location(request, pk):
         job.longitude = form.cleaned_data['longitude']
         job.location_source = form.cleaned_data['source']
         job.save(update_fields=['latitude', 'longitude', 'location_source'])
-        return redirect(step_url(job, job.next_step()))
+        return redirect(wizard.next_url(job))
 
     return render(request, 'jobs/step_location.html', {
-        'job': job, 'form': form, 'steps': stepper(job, 'location'),
+        'job': job, 'form': form, 'steps': wizard.progress(job),
     })
+
+
+
+QUESTION_FORMS = {
+    'ftth_outcome': FtthOutcomeForm,
+    'fat_needs_splitter': YesNoQuestionForm,
+    'tokar_used': YesNoQuestionForm,
+    'materials_used': YesNoQuestionForm,
+    'upload_mbps': SpeedQuestionForm,
+    'download_mbps': SpeedQuestionForm,
+}
+
+
+def _question_view(request, job, index, step):
+    form_class = QUESTION_FORMS[step.field_name]
+    if request.method == 'POST':
+        form = form_class(request.POST)
+        if form.is_valid():
+            setattr(job, step.field_name, form.cleaned_data['answer'])
+            job.save(update_fields=[step.field_name])
+            return redirect(wizard.next_url(job))
+    else:
+        current_answer = getattr(job, step.field_name)
+        form = form_class(initial={
+            'answer': current_answer if current_answer not in (None, '') else None,
+        })
+    return render(request, 'jobs/step_question.html', {
+        'job': job, 'step': step, 'form': form, 'steps': wizard.progress(job, index),
+    })
+
+
+def _description_view(request, job, index, step):
+    if request.method == 'POST':
+        form = ReportForm(request.POST)
+        if form.is_valid():
+            try:
+                job.submit(request.user, form.cleaned_data['description'])
+            except (ValueError, PermissionError) as exc:
+                messages.error(request, str(exc))
+                return redirect(wizard.step_url(job, index))
+            messages.success(request, 'کار با موفقیت ارسال شد.')
+            return redirect('operator_home')
+    else:
+        form = ReportForm()
+    return render(request, 'jobs/step_description.html', {
+        'job': job, 'form': form,
+        'missing': workflows.missing_before_description(job),
+        'steps': wizard.progress(job, index),
+    })
+
+
+
+def _photo_view(request, job, index, step):
+    is_video = step.kind == JobEvidence.Kind.VIDEO
+    form_class = VideoForm if is_video else PhotoForm
+    form = form_class(request.POST or None, request.FILES or None)
+
+    # Videos default to 3 uploads, photos to the shared per-stage limit
+    limit = step.maximum or (3 if is_video else MAX_PHOTOS_PER_STAGE)
+    existing = step.count(job)
+
+    if request.method == 'POST' and form.is_valid():
+        files = [form.cleaned_data['video']] if is_video else form.cleaned_data['images']
+        if existing + len(files) > limit:
+            form.add_error(None, f'حداکثر {limit} مورد برای این مرحله مجاز است.')
+        else:
+            for uploaded in files:
+                JobEvidence.objects.create(
+                    job=job, kind=step.kind, category=step.category,
+                    file=uploaded, uploaded_by=request.user,
+                )
+            messages.success(request, 'ثبت شد.')
+            return redirect(wizard.step_url(job, index))
+
+    return render(request, 'jobs/step_photo.html', {
+        'job': job,
+        'index': index,
+        'step': step,
+        'form': form,
+        'items': job.evidence.filter(kind=step.kind, category=step.category),
+        'count': existing,
+        'complete': step.is_complete(job),
+        'next_url': wizard.next_url(job),
+        'steps': wizard.progress(job, index),
+    })
+
+
+
+def _materials_view(request, job, index, step):
+    materials = Material.objects.filter(code__in=step.allowed_codes).order_by('code')
+
+    if request.method == 'POST':
+        form = MaterialsSelectionForm(request.POST, materials=materials, step=step)
+        if form.is_valid():
+            # Replace this step's old rows, so unchecking an item removes it
+            with transaction.atomic():
+                step.usages(job).delete()
+                for material, quantity in form.selected:
+                    JobMaterialUsage.objects.create(
+                        job=job, material=material, quantity=quantity, purpose=step.purpose,
+                    )
+            messages.success(request, 'ثبت شد.')
+            return redirect(wizard.next_url(job))
+    else:
+        saved = {u.material_id: u.quantity for u in step.usages(job)}
+        initial = {}
+        for m in materials:
+            if m.pk in saved:
+                initial[f'select_{m.code}'] = True
+                initial[f'qty_{m.code}'] = saved[m.pk]
+        form = MaterialsSelectionForm(initial=initial, materials=materials, step=step)
+
+    return render(request, 'jobs/step_materials.html', {
+        'job': job,
+        'index': index,
+        'step': step,
+        'form': form,
+        'complete': step.is_complete(job),
+        'next_url': wizard.next_url(job),
+        'steps': wizard.progress(job, index),
+    })
+
+
+
+
+@role_required(User.Role.OPERATOR)
+@require_POST
+def job_evidence_delete(request, pk, index, evidence_pk):
+    job = get_operator_job(request, pk)
+    if job.status in CLOSED:
+        messages.error(request, 'بعد از ارسال کار، حذف ممکن نیست.')
+        return redirect('operator_home')
+
+    evidence = get_object_or_404(JobEvidence, pk=evidence_pk, job=job)
+    storage, name = evidence.file.storage, evidence.file.name
+    evidence.delete()       # database row first
+    storage.delete(name)    # then the file on disk
+    messages.success(request, 'حذف شد.')
+    return redirect(wizard.step_url(job, index))
+
+
+@role_required(User.Role.OPERATOR)
+def job_step(request, pk, index):
+    job = get_operator_job(request, pk)
+    if job.status in CLOSED:
+        messages.info(request, 'این کار قبلاً ارسال شده است.')
+        return redirect('operator_home')
+    if not job.has_location:
+        return redirect('job_location', pk=job.pk)
+
+    steps = workflows.steps_for(job)
+    if index < 0 or index >= len(steps):
+        raise Http404
+    step = steps[index]
+
+    # Steps can be revisited once they're done, but never skipped ahead to
+    current = wizard.current_index(job)
+    if not step.applies_to(job) or (current is not None and index > current):
+        messages.warning(request, 'ابتدا مرحله قبلی را کامل کنید.')
+        return redirect(wizard.next_url(job))
+
+    if job.status == Job.Status.ASSIGNED:
+        job.status = Job.Status.IN_PROGRESS
+        job.save(update_fields=['status'])
+
+    if isinstance(step, workflows.QuestionStep):
+        return _question_view(request, job, index, step)
+    if isinstance(step, workflows.DescriptionStep):
+        return _description_view(request, job, index, step)
+    if isinstance(step, workflows.PhotoStep):
+        return _photo_view(request, job, index, step)
+    return _materials_view(request, job, index, step)
+
+
 
 
 @role_required(User.Role.OPERATOR)
