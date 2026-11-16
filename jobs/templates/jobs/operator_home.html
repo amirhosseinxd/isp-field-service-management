@@ -8,6 +8,9 @@
     <strong>کار شماره {{ job.pk }} — {{ job.get_job_type_display }}</strong>
     <span class="badge">{{ job.get_status_display }}</span>
     <div class="hint">{{ job.created_at|jalali }}</div>
+    {% if job.status == 'returned' %}
+      <p class="error">برای اصلاح برگشت داده شد: {{ job.returns.first.reason }}</p>
+    {% endif %}
   </a>
 {% empty %}
   <div class="card"><p>فعلاً کار فعالی ندارید.</p></div>

@@ -3,7 +3,9 @@
 {% block title %}داشبورد پشتیبانی{% endblock %}
 {% block main_class %}wide{% endblock %}
 {% block content %}
-<h2>کارها <span class="badge">{{ pending_count }} در انتظار بررسی</span></h2>
+<h2>کارها <span class="badge">{{ pending_count }} در انتظار بررسی</span>
+  <a href="{% url 'job_create' %}" class="btn" style="display:inline-block;width:auto;padding:8px 14px;">+ کار جدید</a>
+</h2>
 
 <form method="get" class="card filters">
   {% for field in form %}

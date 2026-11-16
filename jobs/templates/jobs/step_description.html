@@ -3,7 +3,11 @@
 {% block content %}
 {% include 'jobs/_stepper.html' %}
 <div class="card">
-  <h2>توضیحات و ارسال</h2>
+  <h2>توضیحات و ارسال   {% if job.status == 'returned' %}
+    <p class="error">برای اصلاح برگشت داده شده است. دلیل:
+      {{ job.returns.first.reason }}</p>
+    <p class="hint">مراحل ناقص یا نادرست را از نوار بالا اصلاح کنید، سپس دوباره ارسال کنید.</p>
+  {% endif %}</h2>
   {% if missing %}
     <p class="error">موارد زیر هنوز کامل نیستند:</p>
     <ul>

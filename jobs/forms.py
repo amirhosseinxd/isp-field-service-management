@@ -5,7 +5,7 @@ from accounts.models import User
 
 from inventory.models import Material
 from accounts.jalali_forms import JalaliDateField
-
+from customers.models import Customer
 MAX_PHOTO_MB = 15
 MAX_FILES_PER_UPLOAD = 10
 MAX_PHOTOS_PER_STAGE = 20
@@ -221,3 +221,34 @@ class MaterialsSelectionForm(forms.Form):
             if problem:
                 raise forms.ValidationError(problem)
         return cleaned
+
+
+
+
+
+class CustomerChoiceField(forms.ModelChoiceField):
+    def label_from_instance(self, customer):
+        return f'{customer.full_name} — {customer.subscription_id} — {customer.city.name}'
+
+
+class JobCreateForm(forms.ModelForm):
+    assigned_operator = OperatorChoiceField(label='تکنسین', queryset=operators())
+    customer = CustomerChoiceField(
+        label='مشترک', queryset=Customer.objects.select_related('city'),
+    )
+
+    class Meta:
+        model = Job
+        fields = ['job_type', 'workflow', 'assigned_operator', 'customer']
+        labels = {
+            'job_type': 'دسته اصلی',
+            'workflow': 'نوع کار',
+        }
+
+
+
+class ReturnForm(forms.Form):
+    reason = forms.CharField(
+        label='دلیل برگشت برای اصلاح', max_length=1000,
+        widget=forms.Textarea(attrs={'rows': 3}),
+    )

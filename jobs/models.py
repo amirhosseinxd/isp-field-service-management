@@ -31,6 +31,7 @@ class Job(models.Model):
         ASSIGNED = 'assigned', 'ارجاع شده'
         IN_PROGRESS = 'in_progress', 'در حال انجام'
         SUBMITTED = 'submitted', 'ارسال شده'
+        RETURNED = 'returned', 'برگشت داده شده'
         REVIEWED = 'reviewed', 'بررسی شده'
 
 
@@ -193,7 +194,10 @@ class Job(models.Model):
         self.status = self.Status.SUBMITTED
         self.submitted_at = timezone.now()
         self.save(update_fields=['status', 'submitted_at'])
-
+        # Close any open return, so the history shows when it was fixed
+        self.returns.filter(resubmitted_at__isnull=True).update(
+            resubmitted_at=self.submitted_at,
+        )
 
 
     def mark_reviewed(self, user):
@@ -211,6 +215,30 @@ class Job(models.Model):
         self.status = self.Status.REVIEWED
         self.reviewed_by = user
         self.reviewed_at = now
+
+
+    @transaction.atomic
+    def return_for_correction(self, user, reason):
+        reason = (reason or '').strip()
+        if not reason:
+            raise ValueError('ذکر دلیل برگشت کار الزامی است.')
+
+        # Keep the old description, since the resubmit will overwrite it
+        report = getattr(self, 'report', None)
+        previous_description = report.description if report else ''
+
+        # Conditional update: two admins can't both return the same job
+        updated = Job.objects.filter(pk=self.pk, status=self.Status.SUBMITTED).update(
+            status=self.Status.RETURNED,
+        )
+        if not updated:
+            raise ValueError('فقط کارهای ارسال‌شده قابل برگشت هستند.')
+
+        JobReturn.objects.create(
+            job=self, reason=reason, returned_by=user,
+            previous_description=previous_description,
+        )
+        self.status = self.Status.RETURNED
 
 
 def job_photo_path(instance, filename):
@@ -333,3 +361,23 @@ class JobMaterialUsage(models.Model):
 
     def __str__(self):
         return f"{self.material_code} × {self.quantity}"
+
+
+
+
+
+class JobReturn(models.Model):
+    job = models.ForeignKey(Job, on_delete=models.CASCADE, related_name='returns')
+    reason = models.TextField()
+    previous_description = models.TextField(blank=True)
+    returned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='job_returns_made',
+    )
+    returned_at = models.DateTimeField(auto_now_add=True)
+    resubmitted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-returned_at']
+
+    def __str__(self):
+        return f"Return of job #{self.job_id} at {self.returned_at}"

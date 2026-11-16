@@ -21,7 +21,7 @@
 </div>
 
 <div class="card" style="margin-bottom:16px">
-  <h3>کارهای این مشتری</h3>
+  <h3>کارهای این مشتری  <p><a href="{% url 'job_create' %}?customer={{ customer.pk }}" class="btn" style="display:inline-block;width:auto;padding:8px 14px;">+ ثبت کار برای این مشتری</a></p></h3>
   {% for job in jobs %}
     <p>
       <a href="{% url 'support_job_detail' job.pk %}">کار {{ job.pk }}</a>

@@ -1,0 +1,49 @@
+{% extends 'accounts/base.html' %}
+{% block title %}کار جدید{% endblock %}
+{% block main_class %}wide{% endblock %}
+{% block content %}
+<p><a href="{% url 'support_dashboard' %}">← بازگشت به فهرست</a></p>
+
+<div class="card" style="max-width:640px">
+  <h2>ثبت کار جدید</h2>
+  <p class="hint">
+    مکان کار (عرض و طول جغرافیایی) توسط تکنسین در محل ثبت می‌شود.
+  </p>
+
+  <form method="post">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    {% for field in form %}
+      <label>{{ field.label }}</label>
+      {{ field.errors }}
+      {{ field }}
+    {% endfor %}
+    <button type="submit" class="btn">ایجاد و ارجاع به تکنسین</button>
+  </form>
+</div>
+
+{{ workflow_map|json_script:"workflow-map" }}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var map = JSON.parse(document.getElementById('workflow-map').textContent);
+  var jobType = document.getElementById('id_job_type');
+  var workflow = document.getElementById('id_workflow');
+
+  function refresh() {
+    var allowed = map[jobType.value] || [];
+    Array.prototype.forEach.call(workflow.options, function (opt) {
+      if (!opt.value) return;
+      var ok = allowed.indexOf(opt.value) !== -1;
+      opt.hidden = !ok;
+      opt.disabled = !ok;
+    });
+    if (workflow.value && allowed.indexOf(workflow.value) === -1) {
+      workflow.value = '';
+    }
+  }
+
+  jobType.addEventListener('change', refresh);
+  refresh();
+});
+</script>
+{% endblock %}

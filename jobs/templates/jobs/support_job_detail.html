@@ -1,5 +1,4 @@
 {% extends 'accounts/base.html' %}
-{% load l10n %}
 {% load jalali_tags %}
 {% block title %}کار شماره {{ job.pk }}{% endblock %}
 {% block main_class %}wide{% endblock %}
@@ -7,24 +6,44 @@
 <p><a href="{% url 'support_dashboard' %}">← بازگشت به فهرست</a></p>
 
 <div class="card" style="margin-bottom:16px">
-  <h2>کار شماره {{ job.pk }} — {{ job.get_job_type_display }} — {{ job.get_workflow_display }}
-    <span class="badge">{{ job.get_status_display }}</span></h2>
+  <h2>کار شماره {{ job.pk }} <span class="badge">{{ job.get_status_display }}</span></h2>
   <p>
+    دسته اصلی: {{ job.get_job_type_display }}<br>
+    نوع کار: {{ job.get_workflow_display }}<br>
+    مشترک:
+    {% if job.customer %}
+      <a href="{% url 'customer_detail' job.customer.pk %}">{{ job.customer.full_name }}</a>
+      (<span class="ltr">{{ job.customer.subscription_id }}</span>)
+    {% else %}
+      <span class="hint">ثبت نشده</span>
+    {% endif %}<br>
     تکنسین: {{ job.assigned_operator.get_full_name|default:job.assigned_operator.username }}<br>
     ایجاد: {{ job.created_at|jalali }}
       ({{ job.created_by.get_full_name|default:job.created_by.username }})<br>
-    ارسال: {{ job.submitted_at|jalali|default:"—" }}<br>
-    {% if job.reviewed_at %}
-      بررسی: {{ job.reviewed_at|jalali }}
-      ({{ job.reviewed_by.get_full_name|default:job.reviewed_by.username }})
-    {% endif %}
+    ارسال: {{ job.submitted_at|jalali|default:"—" }}
   </p>
+  {% if job.reviewed_at %}
+    <p>
+      بررسی: {{ job.reviewed_at|jalali }}
+      {% if job.reviewed_by %}
+        ({{ job.reviewed_by.get_full_name|default:job.reviewed_by.username }})
+      {% endif %}
+    </p>
+  {% endif %}
 
   {% if job.status == 'submitted' %}
     <form method="post" action="{% url 'support_job_review' job.pk %}">
       {% csrf_token %}
       <button type="submit">ثبت به‌عنوان بررسی‌شده</button>
     </form>
+    <form method="post" action="{% url 'job_return' job.pk %}" style="margin-top:14px">
+      {% csrf_token %}
+      <label>دلیل برگشت برای اصلاح</label>
+      <textarea name="reason" rows="3" required></textarea>
+      <button type="submit" class="danger">برگرداندن برای اصلاح</button>
+    </form>
+  {% elif job.status == 'returned' %}
+    <p class="error">این کار برای اصلاح به تکنسین برگشت داده شده و هنوز ارسال مجدد نشده است.</p>
   {% endif %}
 </div>
 
@@ -32,7 +51,7 @@
   <h3>مکان</h3>
   {% if job.has_location %}
     <p>
-      <span class="ltr">{{ job.latitude|unlocalize }}, {{ job.longitude|unlocalize }}</span>
+      <span class="ltr">{{ job.latitude }}, {{ job.longitude }}</span>
       {% if job.location_source %}<span class="badge">{{ job.get_location_source_display }}</span>{% endif %}
     </p>
     <p><a href="{{ map_url }}" target="_blank" rel="noopener">نمایش روی نقشه</a></p>
@@ -41,33 +60,98 @@
   {% endif %}
 </div>
 
+{% if job.returns.all %}
 <div class="card" style="margin-bottom:16px">
-  <h3>گزارش</h3>
-  {% if report %}
-    <p style="white-space: pre-wrap">{{ report.description }}</p>
-    <p class="hint">ثبت‌شده در {{ report.submitted_at|jalali }}</p>
-  {% else %}
-    <p>هنوز گزارشی ثبت نشده است.</p>
-  {% endif %}
+  <h3>تاریخچه برگشت‌ها</h3>
+  {% for r in job.returns.all %}
+    <div style="border-bottom:1px solid #eee; padding:10px 0">
+      <p>برگشت در {{ r.returned_at|jalali }} توسط
+        {{ r.returned_by.get_full_name|default:r.returned_by.username }}</p>
+      <p class="error">دلیل: {{ r.reason }}</p>
+      <p class="hint">
+        {% if r.resubmitted_at %}اصلاح و ارسال مجدد در {{ r.resubmitted_at|jalali }}
+        {% else %}هنوز اصلاح نشده{% endif %}
+      </p>
+      {% if r.previous_description %}
+        <details>
+          <summary>توضیحات قبل از اصلاح</summary>
+          <p style="white-space: pre-wrap">{{ r.previous_description }}</p>
+        </details>
+      {% endif %}
+    </div>
+  {% endfor %}
 </div>
+{% endif %}
 
-{% for label, photos in photo_groups %}
+
+
+
+
+
+
+{% for section in sections %}
   <div class="card" style="margin-bottom:16px">
-    <h3>عکس‌های «{{ label }}»</h3>
-    {% if photos %}
+    <h3>
+      {{ section.title }}
+      {% if section.complete %}
+        <span class="badge">کامل</span>
+      {% else %}
+        <span class="badge" style="background:#fde8e8;color:#b00020">ناقص</span>
+      {% endif %}
+    </h3>
+
+    {% if section.kind == 'answer' %}
+      <p>{{ section.value }}</p>
+
+    {% elif section.kind == 'text' %}
+      <p style="white-space: pre-wrap">{{ section.value|default:"—" }}</p>
+
+    {% elif section.kind == 'materials' %}
+      <ul>
+        {% for usage in section.items %}
+          <li>
+            {{ usage.material_code }} — {{ usage.material_name }}:
+            <span class="ltr">{{ usage.quantity }}</span> {{ usage.unit }}
+            {% if usage.purpose == 'needed' %}<span class="hint">(مورد نیاز)</span>{% endif %}
+          </li>
+        {% empty %}
+          <li class="hint">موردی ثبت نشده است.</li>
+        {% endfor %}
+      </ul>
+
+    {% elif section.kind == 'video' %}
+      {% for item in section.items %}
+        <video src="{% url 'video_file' item.pk %}" controls preload="metadata"
+               style="width:100%;max-width:520px;background:#000;border-radius:8px"></video>
+        <p class="hint">{{ item.uploaded_by.get_full_name|default:item.uploaded_by.username }}
+          — {{ item.uploaded_at|jalali }}</p>
+      {% empty %}
+        <p class="hint">ویدیویی ثبت نشده است.</p>
+      {% endfor %}
+
+    {% else %}
       <div class="photo-grid">
-        {% for p in photos %}
+        {% for item in section.items %}
           <figure>
-            <a href="{% url 'photo_file' p.pk %}" target="_blank" rel="noopener">
-              <img src="{% url 'photo_file' p.pk %}" alt="" loading="lazy">
+            <a href="{% url 'photo_file' item.pk %}" target="_blank" rel="noopener">
+              <img src="{% url 'photo_file' item.pk %}" alt="" loading="lazy">
             </a>
-            <figcaption>{{ p.uploaded_at|jalali }}</figcaption>
+            <figcaption>
+              {{ item.uploaded_by.get_full_name|default:item.uploaded_by.username }}<br>
+              {{ item.uploaded_at|jalali }}
+            </figcaption>
           </figure>
+        {% empty %}
+          <p class="hint">عکسی ثبت نشده است.</p>
         {% endfor %}
       </div>
-    {% else %}
-      <p class="hint">عکسی ثبت نشده است.</p>
+    {% endif %}
+
+    {% if not section.complete %}
+      <p class="error" style="margin-top:10px">{{ section.message }}</p>
     {% endif %}
   </div>
+{% empty %}
+  <div class="card"><p class="hint">این نوع کار بخش قابل نمایشی ندارد.</p></div>
 {% endfor %}
 {% endblock %}

@@ -21,6 +21,9 @@ urlpatterns = [
     path('support/jobs/<int:pk>/', views.support_job_detail, name='support_job_detail'),
     path('support/jobs/<int:pk>/review/', views.support_job_review, name='support_job_review'),
     path('support/photos/', views.photo_history, name='photo_history'),
+    path('support/jobs/new/', views.job_create, name='job_create'),
+    path('support/jobs/<int:pk>/return/', views.job_return, name='job_return'),
+
 
     # Protected photo + video files (admins + the job's operator)
     path('photos/<int:pk>/file/', views.job_photo, name='photo_file'),

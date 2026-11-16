@@ -15,15 +15,16 @@ from accounts.permissions import role_required
 
 from . import wizard, workflows
 from .forms import (
-    MAX_PHOTOS_PER_STAGE, FtthOutcomeForm, JobFilterForm, LocationForm, MaterialsSelectionForm,
-    PhotoFilterForm, PhotoForm, ReportForm, SpeedQuestionForm, VideoForm, YesNoQuestionForm,
+    MAX_PHOTOS_PER_STAGE, FtthOutcomeForm, JobCreateForm, JobFilterForm, LocationForm,
+    MaterialsSelectionForm, PhotoFilterForm, PhotoForm, ReportForm, SpeedQuestionForm,
+    VideoForm, YesNoQuestionForm,ReturnForm,
 )
 
 from .models import Job, JobEvidence, JobMaterialUsage
 
 import os
 import re
-
+from .review import review_sections
 from .forms import (
     MAX_PHOTOS_PER_STAGE, JobFilterForm, LocationForm, PhotoFilterForm, PhotoForm, ReportForm,
 )
@@ -174,7 +175,8 @@ def _description_view(request, job, index, step):
             messages.success(request, 'کار با موفقیت ارسال شد.')
             return redirect('operator_home')
     else:
-        form = ReportForm()
+        existing = getattr(job, 'report', None)
+        form = ReportForm(initial={'description': existing.description if existing else ''})
     return render(request, 'jobs/step_description.html', {
         'job': job, 'form': form,
         'missing': workflows.missing_before_description(job),
@@ -505,25 +507,18 @@ def support_dashboard(request):
 @role_required(User.Role.ADMIN)
 def support_job_detail(request, pk):
     job = get_object_or_404(
-        Job.objects.select_related('assigned_operator', 'created_by', 'reviewed_by'),
+        Job.objects.select_related(
+            'assigned_operator', 'created_by', 'reviewed_by', 'customer__city',
+        ),
         pk=pk,
     )
-    report = getattr(job, 'report', None)
-    photo_groups = []
-    for value, label in JobEvidence.Category.choices:
-        photos = job.evidence.filter(
-            kind=JobEvidence.Kind.PHOTO, category=value,
-        ).select_related('uploaded_by')
-        if photos:
-            photo_groups.append((label, photos))
     map_url = None
     if job.has_location:
         lat, lng = job.latitude, job.longitude
         map_url = f'https://www.openstreetmap.org/?mlat={lat}&mlon={lng}#map=17/{lat}/{lng}'
     return render(request, 'jobs/support_job_detail.html', {
         'job': job,
-        'report': report,
-        'photo_groups': photo_groups,
+        'sections': review_sections(job),
         'map_url': map_url,
     })
 
@@ -538,6 +533,25 @@ def support_job_review(request, pk):
         messages.error(request, 'فقط کارهای ارسال‌شده قابل بررسی هستند.')
     else:
         messages.success(request, 'کار به‌عنوان بررسی‌شده ثبت شد.')
+    return redirect('support_job_detail', pk=pk)
+
+
+
+
+@role_required(User.Role.ADMIN)
+@require_POST
+def job_return(request, pk):
+    job = get_object_or_404(Job, pk=pk)
+    form = ReturnForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, 'دلیل برگشت کار را وارد کنید.')
+        return redirect('support_job_detail', pk=pk)
+    try:
+        job.return_for_correction(request.user, form.cleaned_data['reason'])
+    except ValueError as exc:
+        messages.error(request, str(exc))
+    else:
+        messages.success(request, 'کار برای اصلاح به تکنسین برگشت داده شد.')
     return redirect('support_job_detail', pk=pk)
 
 
@@ -564,3 +578,32 @@ def photo_history(request):
 
     page, qs = paginate(request, photos, 24)
     return render(request, 'jobs/photo_history.html', {'form': form, 'page': page, 'qs': qs})
+
+
+
+
+
+
+@role_required(User.Role.ADMIN)
+def job_create(request):
+    # Pre-select a customer when the link comes from a customer's page (?customer=<pk>)
+    initial = {}
+    if request.GET.get('customer'):
+        initial['customer'] = request.GET['customer']
+
+    form = JobCreateForm(request.POST or None, initial=initial)
+    if request.method == 'POST' and form.is_valid():
+        job = form.save(commit=False)
+        job.created_by = request.user
+        job.save()
+        messages.success(request, f'کار شماره {job.pk} ایجاد و به تکنسین ارجاع شد.')
+        return redirect('support_job_detail', pk=job.pk)
+
+    # Tells the browser which workflows belong to each category (see the template script)
+    workflow_map = {
+        jt.value: [wf.value for wf in workflows_for_type]
+        for jt, workflows_for_type in Job.VALID_WORKFLOWS.items()
+    }
+    return render(request, 'jobs/job_create.html', {
+        'form': form, 'workflow_map': workflow_map,
+    })

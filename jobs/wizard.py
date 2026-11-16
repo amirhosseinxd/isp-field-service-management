@@ -1,7 +1,7 @@
 from django.urls import reverse
 
 from . import workflows
-
+from .models import Job
 
 def applicable_indexes(job):
     """Positions (in the workflow's full step list) of the steps that apply to this job."""
@@ -22,13 +22,18 @@ def step_url(job, index):
 
 
 def next_url(job):
-    """Where the technician should go next: location first, then the current step."""
+    """Where the technician should go next."""
     if not job.has_location:
         return reverse('job_location', args=[job.pk])
     current = current_index(job)
-    if current is None:
-        return reverse('operator_home')
-    return step_url(job, current)
+    if current is not None:
+        return step_url(job, current)
+    if job.status == Job.Status.RETURNED:
+        # Everything is filled in, so go straight to the description to resubmit
+        for i in applicable_indexes(job):
+            if isinstance(workflows.steps_for(job)[i], workflows.DescriptionStep):
+                return step_url(job, i)
+    return reverse('operator_home')
 
 
 def progress(job, active_index=None):
