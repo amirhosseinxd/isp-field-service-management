@@ -10,6 +10,9 @@
   <a href="{% url 'customer_import' %}" class="btn" style="display:inline-block;width:auto;padding:8px 14px;">
     ورود از اکسل
   </a>
+  <a href="{% url 'customer_export' %}?{{ qs }}" class="btn" style="display:inline-block;width:auto;padding:8px 14px;">
+    خروجی اکسل
+  </a>
 </h2>
 
 <form method="get" class="card filters">

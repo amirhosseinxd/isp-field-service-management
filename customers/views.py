@@ -2,7 +2,7 @@
 from django.contrib import messages
 from django.db.models import Q,Count
 from django.shortcuts import get_object_or_404, redirect, render
-
+from django.http import HttpResponse
 from accounts.models import User
 from accounts.permissions import role_required
 from jobs.models import JobEvidence
@@ -10,10 +10,10 @@ from jobs.views import paginate
 
 from .forms import CustomerFilterForm, CustomerForm, ExcelUploadForm
 from .models import Customer
-
+import jdatetime
 import openpyxl
 from .imports import import_rows,COLUMNS
-
+from .exports import build_customers_workbook
 
 def _warn_if_duplicate_mobile(request, customer):
     duplicates = Customer.objects.filter(mobile=customer.mobile).exclude(pk=customer.pk)
@@ -113,4 +113,30 @@ def customer_detail(request, pk):
     return render(request, 'customers/customer_detail.html', {
         'customer': customer, 'jobs': jobs, 'page': page, 'qs': qs,
     })
-# Create your views here.
+
+
+
+@role_required(User.Role.ADMIN)
+def customer_export(request):
+    form = CustomerFilterForm(request.GET or None)
+    customers = Customer.objects.select_related('city')
+    if form.is_valid():
+        q = form.cleaned_data['q']
+        city = form.cleaned_data['city']
+        if q:
+            customers = customers.filter(
+                Q(subscription_id__icontains=q)
+                | Q(full_name__icontains=q)
+                | Q(mobile__icontains=q)
+            )
+        if city:
+            customers = customers.filter(city=city)
+
+    workbook = build_customers_workbook(customers)
+    today = jdatetime.date.today().strftime('%Y-%m-%d')
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    response['Content-Disposition'] = f'attachment; filename="customers-{today}.xlsx"'
+    workbook.save(response)
+    return response
