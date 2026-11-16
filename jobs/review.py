@@ -22,7 +22,7 @@ def review_sections(job):
         section = {
             'title': step.key,
             'complete': complete,
-            'message': '' if complete else step.missing_message(),
+            'message': '' if complete else workflows.message_for(step, job),
         }
 
         if isinstance(step, workflows.QuestionStep):

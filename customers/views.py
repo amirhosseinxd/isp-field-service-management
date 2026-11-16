@@ -14,6 +14,10 @@ import jdatetime
 import openpyxl
 from .imports import import_rows,COLUMNS
 from .exports import build_customers_workbook
+from audit.models import AuditEntry
+from audit.services import log as audit_log
+
+
 
 def _warn_if_duplicate_mobile(request, customer):
     duplicates = Customer.objects.filter(mobile=customer.mobile).exclude(pk=customer.pk)
@@ -49,6 +53,7 @@ def customer_create(request):
     form = CustomerForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
         customer = form.save()
+        audit_log(request.user, AuditEntry.Action.CUSTOMER_CREATED, customer)
         _warn_if_duplicate_mobile(request, customer)
         messages.success(request, 'مشتری ثبت شد.')
         return redirect('customer_detail', pk=customer.pk)
@@ -74,6 +79,14 @@ def customer_import(request):
                 for row_number in range(2, sheet.max_row + 1)
             )
             summary = import_rows(rows)
+            audit_log(
+                request.user, AuditEntry.Action.CUSTOMER_IMPORT,
+                details=(
+                    f'فایل {form.cleaned_data["excel_file"].name}: '
+                    f'{summary["created"]} جدید، {summary["updated"]} به‌روزرسانی، '
+                    f'{len(summary["errors"])} خطا'
+                ),
+            )
             summary['duplicate_mobile_count'] = (
                 Customer.objects.exclude(mobile='')
                 .values('mobile')
@@ -92,6 +105,12 @@ def customer_edit(request, pk):
     form = CustomerForm(request.POST or None, instance=customer)
     if request.method == 'POST' and form.is_valid():
         form.save()
+        changed = [str(form.fields[name].label or name) for name in form.changed_data]
+        if changed:
+            audit_log(
+                request.user, AuditEntry.Action.CUSTOMER_UPDATED, customer,
+                details='فیلدهای تغییر‌یافته: ' + '، '.join(changed),
+            )
         _warn_if_duplicate_mobile(request, customer)
         messages.success(request, 'اطلاعات مشتری به‌روزرسانی شد.')
         return redirect('customer_detail', pk=customer.pk)

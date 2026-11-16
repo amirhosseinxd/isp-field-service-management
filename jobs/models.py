@@ -5,6 +5,10 @@ from django.core.exceptions import ValidationError
 from decimal import Decimal
 from django.core.validators import MinValueValidator
 
+
+from audit.models import AuditEntry
+from audit.services import log as audit_log
+
 class Job(models.Model):
     class JobType(models.TextChoices):
         INSTALLATION = 'installation', 'نصب'
@@ -138,33 +142,7 @@ class Job(models.Model):
     def has_location(self):
         return self.latitude is not None and self.longitude is not None
 
-    def photo_count(self, category):
-        return self.evidence.filter(
-            kind=JobEvidence.Kind.PHOTO, category=category,
-        ).count()
-
-    def missing_requirements(self):
-        """Everything still needed before this job can be submitted (old generic rules)."""
-        missing = []
-        if not self.has_location:
-            missing.append('موقعیت مکانی')
-
-        for stage in JobEvidence.LEGACY_STAGES:
-            if self.photo_count(stage) < 1:
-                missing.append(f'عکس {JobEvidence.Category(stage).label}')
-
-        return missing
-
-    def next_step(self):
-        """First incomplete step, in the technician's required order."""
-        if not self.has_location:
-            return 'location'
-        for stage in (JobEvidence.Category.BEFORE, JobEvidence.Category.DURING, JobEvidence.Category.AFTER):
-            if self.photo_count(stage) < 1:
-                return stage
-        if not hasattr(self, 'report'):
-            return 'report'
-        return 'done'
+    
 
     @transaction.atomic
     def submit(self, user, description):
@@ -195,8 +173,12 @@ class Job(models.Model):
         self.submitted_at = timezone.now()
         self.save(update_fields=['status', 'submitted_at'])
         # Close any open return, so the history shows when it was fixed
-        self.returns.filter(resubmitted_at__isnull=True).update(
+        fixed = self.returns.filter(resubmitted_at__isnull=True).update(
             resubmitted_at=self.submitted_at,
+        )
+        audit_log(
+            user, AuditEntry.Action.JOB_SUBMITTED, self,
+            details='ارسال مجدد پس از اصلاح' if fixed else '',
         )
 
 
@@ -215,6 +197,7 @@ class Job(models.Model):
         self.status = self.Status.REVIEWED
         self.reviewed_by = user
         self.reviewed_at = now
+        audit_log(user, AuditEntry.Action.JOB_REVIEWED, self)
 
 
     @transaction.atomic
@@ -238,6 +221,7 @@ class Job(models.Model):
             job=self, reason=reason, returned_by=user,
             previous_description=previous_description,
         )
+        audit_log(user, AuditEntry.Action.JOB_RETURNED, self, details=reason)
         self.status = self.Status.RETURNED
 
 
@@ -276,8 +260,7 @@ class JobEvidence(models.Model):
         # Videos
         VIDEO = 'video', 'ویدیو'
 
-    # The three stages the current (old) technician flow uses
-    LEGACY_STAGES = (Category.BEFORE, Category.DURING, Category.AFTER)
+    
 
     job = models.ForeignKey(Job, on_delete=models.CASCADE, related_name='evidence')
     kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.PHOTO)

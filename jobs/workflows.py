@@ -73,9 +73,13 @@ class MaterialsStep:
             return f'{self.key}: حداکثر {self.maximum_items} ماده مجاز است.'
         return None
 
-    def is_complete(self, job):
+    def current_problem(self, job):
+        """The Farsi reason this step is incomplete, or None if it's complete."""
         codes = list(self.usages(job).values_list('material__code', flat=True))
-        return self.problem(codes) is None
+        return self.problem(codes)
+
+    def is_complete(self, job):
+        return self.current_problem(job) is None
 
     def missing_message(self):
         return f'{self.key}: هنوز کامل نشده است.'
@@ -215,6 +219,12 @@ def steps_for(job):
     """All steps defined for this job's workflow, in order."""
     return WORKFLOWS[job.workflow]
 
+def message_for(step, job):
+    """The Farsi message explaining why this step is incomplete."""
+    if isinstance(step, MaterialsStep):
+        return step.current_problem(job) or step.missing_message()
+    return step.missing_message()
+
 
 def applicable_steps(job):
     """Only the steps that apply to this job, given its current answers."""
@@ -223,17 +233,16 @@ def applicable_steps(job):
 
 def missing_requirements(job):
     """Everything still missing, including the description. Used by Job.submit()."""
-    return [step.missing_message() for step in applicable_steps(job) if not step.is_complete(job)]
+    return [message_for(step, job) for step in applicable_steps(job) if not step.is_complete(job)]
 
 
 def missing_before_description(job):
     """Everything missing except the description, which the user is writing right now."""
     return [
-        step.missing_message()
+        message_for(step, job)
         for step in applicable_steps(job)
         if not isinstance(step, DescriptionStep) and not step.is_complete(job)
     ]
-
 
 def next_step(job):
     for step in applicable_steps(job):

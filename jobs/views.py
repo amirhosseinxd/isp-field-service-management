@@ -28,59 +28,21 @@ from .review import review_sections
 from .forms import (
     MAX_PHOTOS_PER_STAGE, JobFilterForm, LocationForm, PhotoFilterForm, PhotoForm, ReportForm,
 )
+from audit.models import AuditEntry
+from audit.services import log as audit_log
 
 
-STEPS = [
-    ('location', 'مکان'),
-    ('before', 'قبل'),
-    ('during', 'حین کار'),
-    ('after', 'بعد'),
-    ('report', 'گزارش'),
-]
-STEP_KEYS = [key for key, _ in STEPS]
+
 CLOSED = (Job.Status.SUBMITTED, Job.Status.REVIEWED)
 
 
-def step_url(job, key):
-    if key == 'location':
-        return reverse('job_location', args=[job.pk])
-    if key == 'report':
-        return reverse('job_report', args=[job.pk])
-    return reverse('job_photos', args=[job.pk, key])
-
-
-def stepper(job, active):
-    """Progress bar data: done / current / locked for each step."""
-    current_idx = STEP_KEYS.index(job.next_step())
-    items = []
-    for i, (key, label) in enumerate(STEPS):
-        state = 'done' if i < current_idx else 'current' if i == current_idx else 'locked'
-        items.append({
-            'label': label,
-            'state': state,
-            'active': key == active,
-            'url': None if state == 'locked' else step_url(job, key),
-        })
-    return items
 
 
 def get_operator_job(request, pk):
     return get_object_or_404(Job, pk=pk, assigned_operator=request.user)
 
 
-def guard_step(request, job, step):
-    """Return a redirect if the job is closed or the step is locked, else None."""
-    if job.status in CLOSED:
-        messages.info(request, 'این کار قبلاً ارسال شده است.')
-        return redirect('operator_home')
-    current = job.next_step()
-    if STEP_KEYS.index(step) > STEP_KEYS.index(current):
-        messages.warning(request, 'ابتدا مرحله قبلی را کامل کنید.')
-        return redirect(step_url(job, current))
-    if job.status == Job.Status.ASSIGNED:
-        job.status = Job.Status.IN_PROGRESS
-        job.save(update_fields=['status'])
-    return None
+
 
 
 @role_required(User.Role.OPERATOR)
@@ -267,6 +229,10 @@ def job_evidence_delete(request, pk, index, evidence_pk):
         return redirect('operator_home')
 
     evidence = get_object_or_404(JobEvidence, pk=evidence_pk, job=job)
+    audit_log(
+        request.user, AuditEntry.Action.EVIDENCE_DELETED, job,
+        details=f'{evidence.get_kind_display()} — {evidence.get_category_display()}',
+    )
     storage, name = evidence.file.storage, evidence.file.name
     evidence.delete()       # database row first
     storage.delete(name)    # then the file on disk
@@ -308,80 +274,6 @@ def job_step(request, pk, index):
 
 
 
-
-@role_required(User.Role.OPERATOR)
-def job_photos(request, pk, stage):
-    if stage not in JobEvidence.LEGACY_STAGES:
-        raise Http404
-    job = get_operator_job(request, pk)
-    blocked = guard_step(request, job, stage)
-    if blocked:
-        return blocked
-
-    form = PhotoForm(request.POST or None, request.FILES or None)
-    photos = job.evidence.filter(kind=JobEvidence.Kind.PHOTO, category=stage)
-
-    if request.method == 'POST' and form.is_valid():
-        images = form.cleaned_data['images']
-        if photos.count() + len(images) > MAX_PHOTOS_PER_STAGE:
-            form.add_error('images', f'حداکثر {MAX_PHOTOS_PER_STAGE} عکس برای هر مرحله مجاز است.')
-        else:
-            for image in images:
-                JobEvidence.objects.create(
-                    job=job, kind=JobEvidence.Kind.PHOTO, category=stage,
-                    file=image, uploaded_by=request.user,
-                )
-            messages.success(request, f'{len(images)} عکس ثبت شد.')
-            return redirect('job_photos', pk=job.pk, stage=stage)
-
-    next_key = STEP_KEYS[STEP_KEYS.index(stage) + 1]
-    return render(request, 'jobs/step_photos.html', {
-        'job': job,
-        'form': form,
-        'photos': photos,
-        'stage_label': dict(STEPS)[stage],
-        'can_continue': photos.exists(),
-        'next_url': step_url(job, next_key),
-        'steps': stepper(job, stage),
-    })
-
-
-@role_required(User.Role.OPERATOR)
-def job_report(request, pk):
-    job = get_operator_job(request, pk)
-    blocked = guard_step(request, job, 'report')
-    if blocked:
-        return blocked
-
-    form = ReportForm(request.POST or None)
-    if request.method == 'POST' and form.is_valid():
-        try:
-            job.submit(request.user, form.cleaned_data['description'])
-        except (ValueError, PermissionError):
-            messages.error(request, 'ارسال انجام نشد. مراحل ناقص است یا کار قبلاً ارسال شده.')
-            return redirect('job_start', pk=job.pk)
-        messages.success(request, 'کار با موفقیت ارسال شد.')
-        return redirect('operator_home')
-
-    return render(request, 'jobs/step_report.html', {
-        'job': job, 'form': form, 'steps': stepper(job, 'report'),
-    })
-
-@role_required(User.Role.OPERATOR)
-@require_POST
-def job_photo_delete(request, pk, photo_pk):
-    job = get_operator_job(request, pk)
-    if job.status in CLOSED:
-        messages.error(request, 'بعد از ارسال کار، حذف عکس ممکن نیست.')
-        return redirect('operator_home')
-
-    photo = get_object_or_404(JobEvidence, pk=photo_pk, job=job)
-    stage = photo.category
-    storage, name = photo.file.storage, photo.file.name
-    photo.delete()          # database row first, so a failure can't leave a broken link
-    storage.delete(name)    # then the file on disk
-    messages.success(request, 'عکس حذف شد.')
-    return redirect('job_photos', pk=job.pk, stage=stage)
 
 
 
@@ -602,6 +494,13 @@ def job_create(request):
         job = form.save(commit=False)
         job.created_by = request.user
         job.save()
+        audit_log(
+            request.user, AuditEntry.Action.JOB_CREATED, job,
+            details=(
+                f'تکنسین: {job.assigned_operator.get_full_name() or job.assigned_operator.username}'
+                f' — مشترک: {job.customer.full_name}'
+            ),
+        )
         messages.success(request, f'کار شماره {job.pk} ایجاد و به تکنسین ارجاع شد.')
         return redirect('support_job_detail', pk=job.pk)
 
