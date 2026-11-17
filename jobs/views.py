@@ -4,7 +4,7 @@ import mimetypes
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Count, F, Q
-from django.http import FileResponse, Http404
+from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
@@ -13,11 +13,13 @@ from inventory.models import Material
 from accounts.models import User
 from accounts.permissions import role_required
 
+import jdatetime
+from .reports import build_report_workbook, collect_report
 from . import wizard, workflows
 from .forms import (
     MAX_PHOTOS_PER_STAGE, FtthOutcomeForm, JobCreateForm, JobFilterForm, LocationForm,
     MaterialsSelectionForm, PhotoFilterForm, PhotoForm, ReportForm, SpeedQuestionForm,
-    VideoForm, YesNoQuestionForm,ReturnForm,
+    VideoForm, YesNoQuestionForm,ReturnForm,ReportPeriodForm
 )
 
 from .models import Job, JobEvidence, JobMaterialUsage
@@ -514,3 +516,23 @@ def job_create(request):
     return render(request, 'jobs/job_create.html', {
         'form': form, 'workflow_map': workflow_map,
     })
+
+
+
+
+
+@role_required(User.Role.ADMIN)
+def technician_report(request):
+    form = ReportPeriodForm(request.GET or None)
+    if form.is_valid() and 'export' in request.GET:
+        date_from = form.cleaned_data['date_from']
+        date_to = form.cleaned_data['date_to']
+        workbook = build_report_workbook(collect_report(date_from, date_to), date_from, date_to)
+        today = jdatetime.date.today().strftime('%Y-%m-%d')
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
+        response['Content-Disposition'] = f'attachment; filename="technician-report-{today}.xlsx"'
+        workbook.save(response)
+        return response
+    return render(request, 'jobs/technician_report.html', {'form': form})

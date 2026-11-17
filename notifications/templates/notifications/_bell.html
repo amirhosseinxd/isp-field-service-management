@@ -1,5 +1,7 @@
 {% if notif %}
-<div class="bell-wrap" id="bell" data-panel-url="{% url 'notification_panel' %}">
+<div class="bell-wrap" id="bell"
+     data-panel-url="{% url 'notification_panel' %}"
+     data-csrf="{{ csrf_token }}">
   <button type="button" class="bell-btn" aria-label="اعلان‌ها" aria-expanded="false" aria-haspopup="true">
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
          stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -25,8 +27,14 @@
     var menu = root.querySelector('.bell-menu');
     var badge = root.querySelector('.bell-badge');
     var list = root.querySelector('.bell-list');
-    var tokenInput = document.querySelector('input[name=csrfmiddlewaretoken]');
-    var token = tokenInput ? tokenInput.value : '';
+
+    function getToken() {
+      if (root.dataset.csrf && root.dataset.csrf !== 'NOTPROVIDED') {
+        return root.dataset.csrf;
+      }
+      var tokenInput = document.querySelector('input[name=csrfmiddlewaretoken]');
+      return tokenInput ? tokenInput.value : '';
+    }
 
     function show(data, refreshList) {
       badge.textContent = data.badge;
@@ -35,7 +43,7 @@
     }
     function post(url) {
       return fetch(url, {
-        method: 'POST', headers: { 'X-CSRFToken': token }, credentials: 'same-origin'
+        method: 'POST', headers: { 'X-CSRFToken': getToken() }, credentials: 'same-origin'
       }).then(function (r) { return r.json(); });
     }
     function setOpen(open) {
@@ -52,6 +60,7 @@
       var target = e.target.closest('[data-url]');
       if (!target) { return; }
       e.preventDefault();
+      e.stopPropagation();
       post(target.dataset.url).then(function (data) { show(data, true); }).catch(function () {});
     });
 

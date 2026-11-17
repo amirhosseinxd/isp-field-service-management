@@ -4,7 +4,9 @@
 {% block main_class %}wide{% endblock %}
 {% block content %}
 <h2>کارها <span class="badge">{{ pending_count }} در انتظار بررسی</span>
-  <a href="{% url 'job_create' %}" class="btn" style="display:inline-block;width:auto;padding:8px 14px;">+ کار جدید</a>
+  <a href="{% url 'job_create' %}" class="btn" style="display:inline-block;width:auto;padding:8px 14px;">+ کار جدید</a>  <a href="{% url 'technician_report' %}" class="btn" style="display:inline-block;width:auto;padding:8px 14px;">
+    گزارش عملکرد تکنسین‌ها
+  </a>
 </h2>
 
 <form method="get" class="card filters">

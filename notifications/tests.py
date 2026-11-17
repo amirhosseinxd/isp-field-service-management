@@ -4,11 +4,11 @@ from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
-
+import re
 from accounts.models import User
 from customers.models import City, Customer
 from jobs.models import Job
-
+from django.test import Client, TestCase
 from .models import Notification
 from .services import sync_overdue_notifications, unread_count
 
@@ -156,3 +156,26 @@ class NotificationTests(TestCase):
 
     def test_anonymous_users_are_sent_to_login(self):
         self.assertEqual(self.client.get(reverse('notification_panel')).status_code, 302)
+
+
+
+
+
+
+
+    def test_bell_carries_its_own_csrf_token(self):
+        self.make_job()
+        self.client.login(username='n_tech', password=PASSWORD)
+        response = self.client.get(reverse('operator_home'))
+        self.assertContains(response, 'data-csrf="')
+        self.assertNotContains(response, 'data-csrf="NOTPROVIDED"')
+
+    def test_marking_read_works_when_csrf_is_enforced(self):
+        self.make_job()
+        client = Client(enforce_csrf_checks=True)  # the normal test client skips the CSRF check
+        client.login(username='n_tech', password=PASSWORD)
+        page = client.get(reverse('operator_home'))
+        token = re.search(r'data-csrf="([^"]+)"', page.content.decode()).group(1)
+        response = client.post(reverse('notification_read_all'), HTTP_X_CSRFTOKEN=token)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['unread'], 0)

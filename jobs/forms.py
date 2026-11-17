@@ -255,3 +255,18 @@ class ReturnForm(forms.Form):
         label='دلیل برگشت برای اصلاح', max_length=1000,
         widget=forms.Textarea(attrs={'rows': 3}),
     )
+
+
+
+
+
+class ReportPeriodForm(forms.Form):
+    date_from = JalaliDateField(label='از تاریخ ارجاع', required=False)
+    date_to = JalaliDateField(label='تا تاریخ ارجاع', required=False)
+
+    def clean(self):
+        cleaned = super().clean()
+        start, end = cleaned.get('date_from'), cleaned.get('date_to')
+        if start and end and start > end:
+            raise forms.ValidationError('تاریخ شروع نباید بعد از تاریخ پایان باشد.')
+        return cleaned

@@ -22,6 +22,17 @@ Cat = JobEvidence.Category
 Kind = JobEvidence.Kind
 
 
+import io
+from datetime import timedelta
+
+import jdatetime
+from openpyxl import load_workbook
+
+from accounts.templatetags.jalali_tags import jalali
+
+from .reports import DETAIL_SHEET, SUMMARY_SHEET, collect_report, format_duration
+
+
 class JobTestBase(TestCase):
     @classmethod
     def setUpClass(cls):
@@ -313,3 +324,120 @@ class TechnicianPanelTests(JobTestBase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'class="mat-row is-selected"')  # the saved one
         self.assertContains(response, 'class="mat-row"')              # the unselected ones
+
+
+
+
+
+
+
+
+class TechnicianReportTests(JobTestBase):
+    def job(self, operator, hours_to_submit=None, status=Job.Status.ASSIGNED,
+            returned=False, days_ago=2):
+        job = self.make_job('installation', 'fusion', operator=operator)
+        created = timezone.now() - timedelta(days=days_ago)
+        fields = {'created_at': created, 'status': status}
+        if hours_to_submit is not None:
+            fields['submitted_at'] = created + timedelta(hours=hours_to_submit)
+        Job.objects.filter(pk=job.pk).update(**fields)
+        if returned:
+            JobReturn.objects.create(job=job, reason='x', returned_by=self.admin)
+        job.refresh_from_db()
+        return job
+
+    def row_for(self, report, name):
+        return next(r for r in report['summary'] if r['name'] == name)
+
+    def test_summary_numbers_and_average(self):
+        self.job(self.tech, 2, Job.Status.SUBMITTED)
+        self.job(self.tech, 4, Job.Status.REVIEWED)
+        self.job(self.tech, 6, Job.Status.RETURNED, returned=True)
+        self.job(self.tech)  # never submitted
+        row = self.row_for(collect_report(), 't_tech')
+        self.assertEqual(row['total'], 4)
+        self.assertEqual(row['completed'], 3)
+        self.assertEqual(row['approved'], 1)
+        self.assertEqual(row['returned'], 1)
+        self.assertEqual(row['in_progress'], 1)
+        self.assertEqual(row['average'], timedelta(hours=4))   # (2 + 4 + 6) / 3
+
+    def test_technicians_do_not_mix_and_idle_ones_still_appear(self):
+        self.job(self.tech, 2, Job.Status.SUBMITTED)
+        report = collect_report()
+        idle = self.row_for(report, 't_other')
+        self.assertEqual((idle['total'], idle['completed'], idle['in_progress']), (0, 0, 0))
+        self.assertIsNone(idle['average'])
+
+    def test_period_applies_to_both_sheets(self):
+        self.job(self.tech, 2, Job.Status.SUBMITTED, days_ago=2)
+        self.job(self.tech, 2, Job.Status.SUBMITTED, days_ago=40)
+        since = timezone.localdate() - timedelta(days=10)
+        report = collect_report(date_from=since)
+        self.assertEqual(self.row_for(report, 't_tech')['total'], 1)
+        self.assertEqual(len(report['details']), 1)
+
+    def test_detail_row_shows_used_materials_and_time_taken(self):
+        job = self.job(self.tech, 2, Job.Status.SUBMITTED)
+        self.use_material(job, 'M005', '12.5')                    # used
+        self.use_material(job, 'M003', '5', purpose='needed')     # only needed: not listed
+        detail = collect_report()['details'][0]
+        self.assertIn('12.5', detail['materials'])
+        self.assertNotIn('دراپ 4 کر', detail['materials'])
+        self.assertEqual(detail['duration'], timedelta(hours=2))
+        self.assertEqual(detail['customer'], 'مشترک تست')
+
+    def test_duration_text(self):
+        RLM = '\u200f'
+
+        self.assertEqual(
+        format_duration(timedelta(days=2, hours=3)),
+        f'{RLM}2 روز و 3 ساعت{RLM}'
+        )
+        self.assertEqual(format_duration(timedelta(hours=5)), f'{RLM}5 ساعت{RLM}')
+        self.assertEqual(format_duration(timedelta(minutes=12)), f'{RLM}12 دقیقه{RLM}')
+        self.assertEqual(format_duration(timedelta(seconds=10)), f'{RLM}کمتر از 1 دقیقه{RLM}')
+
+    def test_jalali_filter_accepts_a_plain_date(self):
+        day = timezone.localdate()
+        self.assertEqual(
+            jalali(day, '%Y/%m/%d'), jdatetime.date.fromgregorian(date=day).strftime('%Y/%m/%d'),
+        )
+
+    def export(self, **params):
+        self.client.login(username='t_admin', password=PASSWORD)
+        return self.client.get(reverse('technician_report'), {'export': '1', **params})
+
+    def test_export_has_both_sheets(self):
+        self.job(self.tech, 2, Job.Status.SUBMITTED)
+        response = self.export(date_from='', date_to='')
+        workbook = load_workbook(io.BytesIO(response.content))
+        self.assertEqual(workbook.sheetnames, [SUMMARY_SHEET, DETAIL_SHEET])
+        self.assertEqual(workbook[SUMMARY_SHEET].max_row, 3 + 2)   # two technicians
+        self.assertEqual(workbook[DETAIL_SHEET].max_row, 3 + 1)    # one job
+        self.assertIn('بازه ارجاع', workbook[SUMMARY_SHEET]['A1'].value)
+
+    def test_export_for_an_empty_period_still_lists_technicians(self):
+        self.job(self.tech, 2, Job.Status.SUBMITTED)
+        response = self.export(date_from='1300/01/01', date_to='1300/01/02')
+        workbook = load_workbook(io.BytesIO(response.content))
+        self.assertEqual(workbook[DETAIL_SHEET].max_row, 3)         # headers only
+        self.assertEqual(workbook[SUMMARY_SHEET].max_row, 3 + 2)
+
+    def test_reversed_period_is_refused(self):
+        response = self.export(date_from='1405/08/20', date_to='1405/08/10')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'تاریخ شروع')
+
+    def test_formula_in_a_customer_name_stays_text(self):
+        self.customer.full_name = '=1+1'
+        self.customer.save()
+        self.job(self.tech, 2, Job.Status.SUBMITTED)
+        workbook = load_workbook(io.BytesIO(self.export().content))
+        cell = workbook[DETAIL_SHEET]['C4']
+        self.assertEqual(cell.value, '=1+1')
+        self.assertEqual(cell.data_type, 's')
+
+    def test_technicians_cannot_open_the_report(self):
+        self.client.login(username='t_tech', password=PASSWORD)
+        self.assertEqual(self.client.get(reverse('technician_report')).status_code, 403)

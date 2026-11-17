@@ -1,0 +1,25 @@
+{% extends 'accounts/base.html' %}
+{% block title %}گزارش عملکرد تکنسین‌ها{% endblock %}
+{% block main_class %}wide{% endblock %}
+{% block content %}
+<p><a href="{% url 'support_dashboard' %}">← بازگشت به فهرست</a></p>
+
+<div class="card" style="max-width:520px">
+  <h2>گزارش عملکرد تکنسین‌ها</h2>
+  <p class="hint">
+    فایل اکسل شامل دو برگه است: خلاصه عملکرد هر تکنسین و گزارش تفصیلی همه کارها.
+    بازه بر اساس <strong>تاریخ ارجاع کار</strong> است و برای هر دو برگه یکسان اعمال می‌شود.
+    اگر یکی از تاریخ‌ها را خالی بگذارید، آن سمت بازه محدودیتی ندارد.
+  </p>
+
+  <form method="get">
+    {{ form.non_field_errors }}
+    {% for field in form %}
+      <label>{{ field.label }}</label>
+      {{ field.errors }}
+      {{ field }}
+    {% endfor %}
+    <button type="submit" name="export" value="1" class="btn">دریافت فایل اکسل</button>
+  </form>
+</div>
+{% endblock %}
