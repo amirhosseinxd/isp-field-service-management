@@ -296,3 +296,20 @@ class TechnicianPanelTests(JobTestBase):
         self.assertContains(response, f'href="{reverse("operator_home")}"')
         self.assertContains(response, 'href="tel:09120000000"')
         self.assertContains(response, 'سمنان')
+
+
+
+    def test_materials_screen_marks_saved_rows_as_selected(self):
+        job = self.make_job(
+            'installation', 'ftth_inquiry', ftth_outcome='needs_materials',
+            latitude=Decimal('35.1'), longitude=Decimal('51.1'),
+        )
+        self.add_evidence(job, Cat.GENERAL)
+        self.add_evidence(job, Cat.GENERAL)
+        self.use_material(job, 'M003', '10.5', purpose='needed')
+
+        self.client.login(username='t_tech', password=PASSWORD)
+        response = self.client.get(reverse('job_step', args=[job.pk, 2]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'class="mat-row is-selected"')  # the saved one
+        self.assertContains(response, 'class="mat-row"')              # the unselected ones

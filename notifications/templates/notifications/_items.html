@@ -1,0 +1,31 @@
+{% load jalali_tags %}
+{% for n in notif.items %}
+  <li class="notif-item{% if not n.read_at %} is-unread{% endif %}{% if n.resolved_at %} is-resolved{% endif %}">
+    <a class="notif-link" href="{% url 'notification_open' n.pk %}">
+      {% if n.kind == 'job_assigned' %}
+        <span class="notif-title">کار جدید به شما ارجاع شد</span>
+        <span class="notif-text">
+          {{ n.job.get_workflow_display }} — {{ n.job.customer.full_name|default:"بدون مشترک" }}
+        </span>
+      {% else %}
+        <span class="notif-title">کار معوق: {{ n.job.customer.full_name }}</span>
+        <span class="notif-text">
+          ثبت‌نام {{ n.job.customer.registered_at|jalali:"%Y/%m/%d" }}
+          · کار {{ n.job_id }} · {{ n.job.get_workflow_display }}
+          · وضعیت: {{ n.job.get_status_display }}
+        </span>
+      {% endif %}
+      <span class="notif-time" title="{{ n.created_at|jalali }}">
+        {{ n.created_at|time_ago }}{% if n.resolved_at %} · رفع شد{% endif %}
+      </span>
+    </a>
+    {% if not n.read_at %}
+      <button type="button" class="bell-action notif-read-btn"
+              data-url="{% url 'notification_read' n.pk %}"
+              title="علامت‌گذاری به‌عنوان خوانده‌شده"
+              aria-label="علامت‌گذاری به‌عنوان خوانده‌شده">✓</button>
+    {% endif %}
+  </li>
+{% empty %}
+  <li class="notif-empty">اعلانی وجود ندارد.</li>
+{% endfor %}

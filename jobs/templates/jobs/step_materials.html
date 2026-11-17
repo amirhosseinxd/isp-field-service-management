@@ -15,14 +15,21 @@
   <form method="post">
     {% csrf_token %}
     {{ form.non_field_errors }}
-    {% for material, select, qty in form.rows %}
-      <div class="material-row">
-        <label class="choice">{{ select }} {{ material.name }}
-          <span class="hint">({{ material.unit }})</span>
-        </label>
-        <div class="qty">{{ qty.errors }}{{ qty }}</div>
-      </div>
-    {% endfor %}
+
+    <div class="mat-list">
+      {% for material, select, qty in form.rows %}
+        <div class="mat-row{% if select.value %} is-selected{% endif %}">
+          <label class="mat-label">
+            {{ select }}
+            <span class="mat-name">{{ material.name }}</span>
+            <span class="mat-unit">{{ material.unit }}</span>
+          </label>
+          <div class="mat-qty">{{ qty }}</div>
+          {{ qty.errors }}
+        </div>
+      {% endfor %}
+    </div>
+
     <button type="submit" class="btn">ثبت</button>
   </form>
 
@@ -30,4 +37,13 @@
     <a class="btn" href="{{ next_url }}">مرحله بعد</a>
   {% endif %}
 </div>
+
+<script>
+  document.querySelectorAll('.mat-row').forEach(function (row) {
+    var box = row.querySelector('input[type="checkbox"]');
+    function sync() { row.classList.toggle('is-selected', box.checked); }
+    box.addEventListener('change', sync);
+    sync();
+  });
+</script>
 {% endblock %}

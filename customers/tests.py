@@ -16,7 +16,17 @@ from datetime import timedelta
 from django.db.models import Max
 
 from accounts.templatetags.jalali_tags import time_ago
-from jobs.models import Job, JobEvidence
+
+import io
+
+from django.urls import reverse
+from openpyxl import load_workbook
+
+from inventory.models import Material
+from jobs.models import Job, JobEvidence, JobMaterialUsage
+
+from .filters import apply_filters, base_customers
+from .forms import CustomerFilterForm
 
 def make_customer(**overrides):
     data = dict(
@@ -175,3 +185,85 @@ class TimeAgoFilterTests(TestCase):
         self.assertEqual(time_ago(now - timedelta(days=2, hours=1)), '۲ روز پیش')
         self.assertEqual(time_ago(now - timedelta(seconds=5)), 'لحظاتی پیش')
         self.assertEqual(time_ago(None), '')
+
+
+
+
+
+
+
+
+class MaterialFilterAndSelectionTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(username='f_admin', password='pw-12345-test', role=User.Role.ADMIN)
+        self.tech = User.objects.create_user(username='f_tech', password='pw-12345-test', role=User.Role.OPERATOR)
+
+        def customer(number, name):
+            c = make_customer(subscription_id=number, full_name=name)
+            c.save()
+            return c
+
+        self.splitter16 = customer('0000000001', 'الف')
+        self.splitter8 = customer('0000000002', 'ب')
+        self.wire = customer('0000000003', 'ج')
+        self.unfinished = customer('0000000004', 'د')   # used a splitter, but the job isn't finished
+        self.needed_only = customer('0000000005', 'ه')  # splitter only listed as "needed"
+
+        self.use(self.splitter16, 'M012')
+        self.use(self.splitter8, 'M013')
+        self.use(self.wire, 'M005')
+        self.use(self.unfinished, 'M012', status=Job.Status.IN_PROGRESS)
+        self.use(self.needed_only, 'M012', purpose='needed')
+
+    def use(self, customer, code, status=Job.Status.SUBMITTED, purpose='used'):
+        job = Job.objects.create(
+            job_type='installation', workflow='ftth_inquiry', assigned_operator=self.tech,
+            created_by=self.admin, customer=customer, status=status,
+        )
+        JobMaterialUsage.objects.create(
+            job=job, material=Material.objects.get(code=code), quantity=1, purpose=purpose,
+        )
+
+    def ids_for(self, **params):
+        form = CustomerFilterForm(params)
+        self.assertTrue(form.is_valid(), form.errors)
+        return set(apply_filters(base_customers(), form).values_list('pk', flat=True))
+
+    def test_splitter_group_matches_either_splitter(self):
+        self.assertEqual(self.ids_for(material='g_splitter'), {self.splitter16.pk, self.splitter8.pk})
+
+
+    def test_single_material_matches_only_that_material(self):
+        self.assertEqual(self.ids_for(material='M005'), {self.wire.pk})
+        self.assertEqual(self.ids_for(material='M009'), set())  # nobody used a hook
+
+    def test_grouped_materials_are_not_offered_on_their_own(self):
+        # By design, both splitters live in the single "اسپلیتر" option
+        for code in ('M012', 'M013'):
+            with self.subTest(code=code):
+                self.assertFalse(CustomerFilterForm({'material': code}).is_valid())
+
+    
+    def test_material_filter_combines_with_other_filters(self):
+        self.assertEqual(self.ids_for(material='g_splitter', q='ب'), {self.splitter8.pk})
+
+    def read_ids(self, response):
+        sheet = load_workbook(io.BytesIO(response.content)).active
+        return {row[0].value for row in sheet.iter_rows(min_row=3)}
+
+    def test_export_with_filter_exports_everything_that_matches(self):
+        self.client.login(username='f_admin', password='pw-12345-test')
+        response = self.client.get(reverse('customer_export'), {'material': 'g_splitter'})
+        self.assertEqual(self.read_ids(response), {1, 2})
+
+    def test_export_of_selected_customers_only_includes_them(self):
+        self.client.login(username='f_admin', password='pw-12345-test')
+        response = self.client.post(
+            reverse('customer_export'), {'ids': f'{self.wire.pk},{self.needed_only.pk},abc'},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.read_ids(response), {3, 5})
+
+    def test_technician_cannot_export(self):
+        self.client.login(username='f_tech', password='pw-12345-test')
+        self.assertEqual(self.client.post(reverse('customer_export'), {'ids': '1'}).status_code, 403)

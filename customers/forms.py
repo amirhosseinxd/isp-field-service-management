@@ -3,7 +3,7 @@ from django.db.models import Q
 
 from .models import City, Customer
 from accounts.jalali_forms import JalaliDateTimeField
-
+from .filters import material_choices
 class CustomerForm(forms.ModelForm):
     registered_at = JalaliDateTimeField(label='تاریخ و ساعت ثبت‌نام')
 
@@ -36,6 +36,12 @@ class CustomerFilterForm(forms.Form):
     city = forms.ModelChoiceField(
         label='شهر', queryset=City.objects.all(), required=False, empty_label='همه',
     )
+    material = forms.ChoiceField(label='متریال مصرف‌شده', required=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Built when the form is created, so it always matches the materials table
+        self.fields['material'].choices = material_choices()
 
 
 

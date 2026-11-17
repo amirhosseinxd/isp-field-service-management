@@ -10,7 +10,9 @@
   <a href="{% url 'customer_import' %}" class="btn" style="display:inline-block;width:auto;padding:8px 14px;">
     ورود از اکسل
   </a>
-  <a href="{% url 'customer_export' %}?{{ qs }}" class="btn" style="display:inline-block;width:auto;padding:8px 14px;">
+  <a href="{% url 'customer_export' %}?{{ qs }}" id="export-btn" class="btn"
+     title="خروجی اکسل از همه نتایج فیلتر فعلی"
+     style="display:inline-block;width:auto;padding:8px 14px;">
     خروجی اکسل
   </a>
 </h2>
@@ -21,14 +23,24 @@
   {% endfor %}
   <div class="filter-actions">
     <button type="submit">اعمال فیلتر</button>
-    <a href="{% url 'customer_list' %}">پاک کردن</a>
+    <a href="{% url 'customer_list' %}">حذف فیلترها</a>
+    <button type="button" id="select-mode-btn" class="sm-btn">انتخاب</button>
   </div>
 </form>
 
-<div class="table-wrap">
+<div class="select-bar" id="select-bar" hidden>
+  <span><strong id="sel-count">۰</strong> مورد انتخاب شده</span>
+  <button type="button" id="sel-cancel" class="sm-btn">لغو</button>
+</div>
+
+<div class="table-wrap" id="customers-table">
   <table>
     <thead>
       <tr>
+        <th class="sel-cell">
+          <input type="checkbox" id="select-all-page"
+                 title="انتخاب همه موارد این صفحه" aria-label="انتخاب همه موارد این صفحه">
+        </th>
         <th>شناسه اشتراک</th><th>نام</th><th>موبایل</th><th>شهر</th>
         <th>مرکز</th><th>تاریخ ثبت‌نام</th><th>تاریخ آخرین تغییر</th><th>وضعیت</th><th></th>
       </tr>
@@ -36,13 +48,16 @@
     <tbody>
       {% for c in page %}
         <tr>
+          <td class="sel-cell">
+            <input type="checkbox" class="row-check" value="{{ c.pk }}"
+                   aria-label="انتخاب {{ c.full_name }}">
+          </td>
           <td class="ltr">{{ c.subscription_id }}</td>
           <td><a href="{% url 'customer_detail' c.pk %}">{{ c.full_name }}</a></td>
           <td class="ltr">{{ c.mobile }}</td>
           <td>{{ c.city }}</td>
           <td class="ltr">{{ c.center }}</td>
           <td>{{ c.registered_at|jalali }}</td>
-          
           <td>
             {% if c.last_activity %}
               <span title="{{ c.last_activity|jalali }}">{{ c.last_activity|time_ago }}</span>
@@ -50,15 +65,116 @@
               —
             {% endif %}
           </td>
-
           <td>{{ c.current_status_display }}</td>
           <td><a href="{% url 'customer_detail' c.pk %}">مشاهده</a></td>
         </tr>
       {% empty %}
-        <tr><td colspan="9">موردی پیدا نشد.</td></tr>
+        <tr><td colspan="10">موردی پیدا نشد.</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
 {% include 'jobs/_pagination.html' %}
+
+<form id="export-selected-form" method="post" action="{% url 'customer_export' %}" hidden>
+  {% csrf_token %}
+  <input type="hidden" name="ids" id="export-ids">
+</form>
+
+<script>
+(function () {
+  var MODE_KEY = 'fsm.customers.selectMode';
+  var SEL_KEY = 'fsm.customers.selected';
+
+  var wrap = document.getElementById('customers-table');
+  var bar = document.getElementById('select-bar');
+  var countEl = document.getElementById('sel-count');
+  var selectBtn = document.getElementById('select-mode-btn');
+  var cancelBtn = document.getElementById('sel-cancel');
+  var exportBtn = document.getElementById('export-btn');
+  var exportForm = document.getElementById('export-selected-form');
+  var exportIds = document.getElementById('export-ids');
+  var allBox = document.getElementById('select-all-page');
+  var rowBoxes = Array.prototype.slice.call(document.querySelectorAll('.row-check'));
+
+  function loadSelected() {
+    try { return new Set(JSON.parse(sessionStorage.getItem(SEL_KEY) || '[]')); }
+    catch (e) { return new Set(); }
+  }
+  function saveSelected() {
+    sessionStorage.setItem(SEL_KEY, JSON.stringify(Array.from(selected)));
+  }
+
+  var selected = loadSelected();
+  var active = sessionStorage.getItem(MODE_KEY) === '1';
+
+  function render() {
+    wrap.classList.toggle('select-mode', active);
+    bar.hidden = !active;
+    selectBtn.hidden = active;
+
+    rowBoxes.forEach(function (box) {
+      var on = selected.has(box.value);
+      box.checked = on;
+      box.closest('tr').classList.toggle('is-picked', on);
+    });
+    allBox.checked = rowBoxes.length > 0 && rowBoxes.every(function (b) { return b.checked; });
+    countEl.textContent = selected.size.toLocaleString('fa-IR');
+
+    var blocked = active && selected.size === 0;
+    exportBtn.classList.toggle('disabled', blocked);
+    exportBtn.setAttribute('aria-disabled', blocked ? 'true' : 'false');
+    exportBtn.title = active
+      ? 'خروجی اکسل از موارد انتخاب‌شده (در همه صفحه‌ها)'
+      : 'خروجی اکسل از همه نتایج فیلتر فعلی';
+  }
+
+  selectBtn.addEventListener('click', function () {
+    active = true;
+    sessionStorage.setItem(MODE_KEY, '1');
+    render();
+  });
+
+  cancelBtn.addEventListener('click', function () {
+    active = false;
+    selected = new Set();
+    sessionStorage.removeItem(MODE_KEY);
+    sessionStorage.removeItem(SEL_KEY);
+    render();
+  });
+
+  rowBoxes.forEach(function (box) {
+    box.addEventListener('change', function () {
+      if (box.checked) { selected.add(box.value); } else { selected.delete(box.value); }
+      saveSelected();
+      render();
+    });
+  });
+
+  allBox.addEventListener('change', function () {
+    rowBoxes.forEach(function (box) {
+      if (allBox.checked) { selected.add(box.value); } else { selected.delete(box.value); }
+    });
+    saveSelected();
+    render();
+  });
+
+  exportBtn.addEventListener('click', function (event) {
+    if (!active) { return; }        // normal mode: the link exports everything matching the filters
+    event.preventDefault();
+    if (selected.size === 0) { return; }
+    exportIds.value = Array.from(selected).join(',');
+    exportForm.submit();
+  });
+
+  // Coming back with the browser's back button can show a stale page, so re-read the saved state
+  window.addEventListener('pageshow', function () {
+    selected = loadSelected();
+    active = sessionStorage.getItem(MODE_KEY) === '1';
+    render();
+  });
+
+  render();
+})();
+</script>
 {% endblock %}

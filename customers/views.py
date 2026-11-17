@@ -17,7 +17,7 @@ from .exports import build_customers_workbook
 from audit.models import AuditEntry
 from audit.services import log as audit_log
 
-
+from .filters import apply_filters, base_customers
 
 def _warn_if_duplicate_mobile(request, customer):
     duplicates = Customer.objects.filter(mobile=customer.mobile).exclude(pk=customer.pk)
@@ -27,27 +27,13 @@ def _warn_if_duplicate_mobile(request, customer):
             request, f'توجه: این شماره موبایل برای مشتری دیگری نیز ثبت شده است: {names}',
         )
 
-
 @role_required(User.Role.ADMIN)
 def customer_list(request):
     form = CustomerFilterForm(request.GET or None)
-    customers = Customer.objects.select_related('city').annotate(
-        last_activity=Max('jobs__updated_at'),
-    )
-    if form.is_valid():
-        q = form.cleaned_data['q']
-        city = form.cleaned_data['city']
-        if q:
-            customers = customers.filter(
-                Q(subscription_id__icontains=q)
-                | Q(full_name__icontains=q)
-                | Q(mobile__icontains=q)
-            )
-        if city:
-            customers = customers.filter(city=city)
-
+    customers = apply_filters(base_customers(), form)
     page, qs = paginate(request, customers, 20)
     return render(request, 'customers/customer_list.html', {'form': form, 'page': page, 'qs': qs})
+
 
 
 @role_required(User.Role.ADMIN)
@@ -136,24 +122,19 @@ def customer_detail(request, pk):
     })
 
 
-
 @role_required(User.Role.ADMIN)
 def customer_export(request):
-    form = CustomerFilterForm(request.GET or None)
-    customers = Customer.objects.select_related('city').annotate(
-        last_activity=Max('jobs__updated_at'),
-    )
-    if form.is_valid():
-        q = form.cleaned_data['q']
-        city = form.cleaned_data['city']
-        if q:
-            customers = customers.filter(
-                Q(subscription_id__icontains=q)
-                | Q(full_name__icontains=q)
-                | Q(mobile__icontains=q)
-            )
-        if city:
-            customers = customers.filter(city=city)
+    if request.method == 'POST':
+        # Selection mode: export exactly the ticked customers, from any page
+        ids = [
+            int(part) for part in request.POST.get('ids', '').split(',')
+            if part.strip().isdigit()
+        ]
+        customers = base_customers().filter(pk__in=ids)
+    else:
+        # Normal mode: export everything that matches the current filters
+        form = CustomerFilterForm(request.GET or None)
+        customers = apply_filters(base_customers(), form)
 
     workbook = build_customers_workbook(customers)
     today = jdatetime.date.today().strftime('%Y-%m-%d')

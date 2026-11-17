@@ -140,13 +140,25 @@ class Job(models.Model):
         if self.workflow and self.workflow not in allowed:
             raise ValidationError({'workflow': 'این نوع کار برای دسته انتخاب‌شده مجاز نیست.'})
 
+
+    @classmethod
+    def from_db(cls, db, field_names, values):
+        instance = super().from_db(db, field_names, values)
+        # Remember who the job was assigned to when loaded, so a change can be noticed on save
+        instance._loaded_operator_id = instance.__dict__.get('assigned_operator_id')
+        return instance
+
     def save(self, *args, **kwargs):
         self.updated_at = timezone.now()
         update_fields = kwargs.get('update_fields')
         if update_fields is not None:
-            # A partial save only writes the listed fields, so add this one to the list
             kwargs['update_fields'] = {*update_fields, 'updated_at'}
         super().save(*args, **kwargs)
+        saved = kwargs.get('update_fields')
+        if saved is None or 'assigned_operator' in saved or 'assigned_operator_id' in saved:
+            self._loaded_operator_id = self.assigned_operator_id
+
+    
 
     @property
     def has_location(self):
