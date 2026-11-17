@@ -1,6 +1,6 @@
 
 from django.contrib import messages
-from django.db.models import Q,Count
+from django.db.models import Q,Count,Max
 from django.shortcuts import get_object_or_404, redirect, render
 from django.http import HttpResponse
 from accounts.models import User
@@ -31,7 +31,9 @@ def _warn_if_duplicate_mobile(request, customer):
 @role_required(User.Role.ADMIN)
 def customer_list(request):
     form = CustomerFilterForm(request.GET or None)
-    customers = Customer.objects.select_related('city')
+    customers = Customer.objects.select_related('city').annotate(
+        last_activity=Max('jobs__updated_at'),
+    )
     if form.is_valid():
         q = form.cleaned_data['q']
         city = form.cleaned_data['city']
@@ -138,7 +140,9 @@ def customer_detail(request, pk):
 @role_required(User.Role.ADMIN)
 def customer_export(request):
     form = CustomerFilterForm(request.GET or None)
-    customers = Customer.objects.select_related('city')
+    customers = Customer.objects.select_related('city').annotate(
+        last_activity=Max('jobs__updated_at'),
+    )
     if form.is_valid():
         q = form.cleaned_data['q']
         city = form.cleaned_data['city']

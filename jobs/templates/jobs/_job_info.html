@@ -1,0 +1,25 @@
+{% load jalali_tags %}
+<aside class="job-info" aria-label="اطلاعات کار">
+  <div class="job-info-grid">
+    <div>
+      <span class="label">مشترک</span>
+      <strong>{% if job.customer %}{{ job.customer.full_name }}{% else %}—{% endif %}</strong>
+    </div>
+    <div>
+      <span class="label">تلفن</span>
+      {% if job.customer and job.customer.mobile %}
+        <a class="tel-link ltr" href="tel:{{ job.customer.mobile }}">📞 {{ job.customer.mobile }}</a>
+      {% else %}
+        —
+      {% endif %}
+    </div>
+    <div>
+      <span class="label">تاریخ کار</span>
+      {{ job.created_at|jalali:"%Y/%m/%d" }}
+    </div>
+    <div>
+      <span class="label">شهر</span>
+      {% if job.customer %}{{ job.customer.city.name }}{% else %}—{% endif %}
+    </div>
+  </div>
+</aside>

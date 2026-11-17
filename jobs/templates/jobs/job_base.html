@@ -1,0 +1,14 @@
+{% extends 'accounts/base.html' %}
+{% block main_class %}job-page{% endblock %}
+{% block content %}
+<div class="job-wrap">
+  <a class="back-link" href="{% url 'operator_home' %}">→ بازگشت به لیست کارها</a>
+
+  <div class="job-layout">
+    {% include 'jobs/_job_info.html' %}
+    <div class="job-main">
+      {% block job_content %}{% endblock %}
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -39,15 +39,17 @@ CLOSED = (Job.Status.SUBMITTED, Job.Status.REVIEWED)
 
 
 def get_operator_job(request, pk):
-    return get_object_or_404(Job, pk=pk, assigned_operator=request.user)
-
+    return get_object_or_404(
+        Job.objects.select_related('customer__city'),
+        pk=pk, assigned_operator=request.user,
+    )
 
 
 
 
 @role_required(User.Role.OPERATOR)
 def operator_home(request):
-    mine = Job.objects.filter(assigned_operator=request.user)
+    mine = Job.objects.filter(assigned_operator=request.user).select_related('customer')
     return render(request, 'jobs/operator_home.html', {
         'active_jobs': mine.exclude(status__in=CLOSED),
         'submitted_jobs': mine.filter(status__in=CLOSED)[:10],

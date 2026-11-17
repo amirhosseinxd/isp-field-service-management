@@ -87,6 +87,8 @@ class Job(models.Model):
     
     created_at = models.DateTimeField(auto_now_add=True)
 
+    updated_at = models.DateTimeField(default=timezone.now, editable=False)
+
     submitted_at = models.DateTimeField(null=True, blank=True)
 
     reviewed_by = models.ForeignKey(
@@ -137,6 +139,14 @@ class Job(models.Model):
         allowed = self.VALID_WORKFLOWS.get(self.job_type, [])
         if self.workflow and self.workflow not in allowed:
             raise ValidationError({'workflow': 'این نوع کار برای دسته انتخاب‌شده مجاز نیست.'})
+
+    def save(self, *args, **kwargs):
+        self.updated_at = timezone.now()
+        update_fields = kwargs.get('update_fields')
+        if update_fields is not None:
+            # A partial save only writes the listed fields, so add this one to the list
+            kwargs['update_fields'] = {*update_fields, 'updated_at'}
+        super().save(*args, **kwargs)
 
     @property
     def has_location(self):
@@ -189,6 +199,7 @@ class Job(models.Model):
             status=self.Status.REVIEWED,
             reviewed_by=user,
             reviewed_at=now,
+            updated_at=now,
         )
         if not updated:
             raise ValueError('Only submitted jobs can be marked as reviewed.')
@@ -197,6 +208,7 @@ class Job(models.Model):
         self.status = self.Status.REVIEWED
         self.reviewed_by = user
         self.reviewed_at = now
+        self.updated_at = now
         audit_log(user, AuditEntry.Action.JOB_REVIEWED, self)
 
 
@@ -213,6 +225,7 @@ class Job(models.Model):
         # Conditional update: two admins can't both return the same job
         updated = Job.objects.filter(pk=self.pk, status=self.Status.SUBMITTED).update(
             status=self.Status.RETURNED,
+            updated_at=timezone.now(),
         )
         if not updated:
             raise ValueError('فقط کارهای ارسال‌شده قابل برگشت هستند.')

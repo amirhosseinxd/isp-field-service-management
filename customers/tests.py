@@ -11,7 +11,12 @@ from jobs.models import Job
 
 from .imports import import_rows, parse_row
 from .models import City, Customer
+from datetime import timedelta
 
+from django.db.models import Max
+
+from accounts.templatetags.jalali_tags import time_ago
+from jobs.models import Job, JobEvidence
 
 def make_customer(**overrides):
     data = dict(
@@ -103,3 +108,70 @@ class ExcelImportTests(TestCase):
         self.assertEqual(summary['created'], 1)
         self.assertEqual(len(summary['errors']), 1)
         self.assertEqual(summary['errors'][0][0], 3)  # the error names row 3
+
+
+
+
+
+
+
+
+class LastActivityTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(username='l_admin', password='x', role=User.Role.ADMIN)
+        self.tech = User.objects.create_user(username='l_tech', password='x', role=User.Role.OPERATOR)
+        self.customer = make_customer()
+        self.customer.save()
+
+    def make_job(self):
+        return Job.objects.create(
+            job_type='installation', workflow='ftth_inquiry', assigned_operator=self.tech,
+            created_by=self.admin, customer=self.customer, ftth_outcome='feasible',
+        )
+
+    def last_activity(self):
+        return Customer.objects.annotate(last=Max('jobs__updated_at')).get(pk=self.customer.pk).last
+
+    def make_old(self, *jobs):
+        old = timezone.now() - timedelta(days=5)
+        Job.objects.filter(pk__in=[j.pk for j in jobs]).update(updated_at=old)
+        return old
+
+    def test_customer_without_jobs_has_no_activity(self):
+        self.assertIsNone(self.last_activity())
+
+    def test_activity_follows_the_newest_change_across_all_jobs(self):
+        first, second = self.make_job(), self.make_job()
+        old = self.make_old(first, second)
+        first.status = Job.Status.IN_PROGRESS
+        first.save(update_fields=['status'])  # a partial save must still count
+        first.refresh_from_db()
+        self.assertEqual(self.last_activity(), first.updated_at)
+        self.assertGreater(first.updated_at, old)
+
+    def test_review_counts_as_activity(self):
+        job = self.make_job()
+        job.submit(self.tech, 'desc')
+        old = self.make_old(job)
+        job.refresh_from_db()
+        job.mark_reviewed(self.admin)  # this one bypasses save()
+        job.refresh_from_db()
+        self.assertGreater(job.updated_at, old)
+
+    def test_uploading_evidence_counts_as_activity(self):
+        job = self.make_job()
+        old = self.make_old(job)
+        JobEvidence.objects.create(
+            job=job, kind='photo', category='general', file='x.jpg', uploaded_by=self.tech,
+        )
+        job.refresh_from_db()
+        self.assertGreater(job.updated_at, old)
+
+
+class TimeAgoFilterTests(TestCase):
+    def test_uses_largest_unit_and_persian_digits(self):
+        now = timezone.now()
+        self.assertEqual(time_ago(now - timedelta(hours=3, minutes=10)), '۳ ساعت پیش')
+        self.assertEqual(time_ago(now - timedelta(days=2, hours=1)), '۲ روز پیش')
+        self.assertEqual(time_ago(now - timedelta(seconds=5)), 'لحظاتی پیش')
+        self.assertEqual(time_ago(None), '')

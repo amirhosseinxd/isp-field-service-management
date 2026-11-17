@@ -272,3 +272,27 @@ class AccessControlTests(JobTestBase):
         self.client.login(username='t_tech', password=PASSWORD)
         self.client.post(reverse('job_evidence_delete', args=[self.my_job.pk, 0, photo.pk]))
         self.assertTrue(JobEvidence.objects.filter(pk=photo.pk).exists())
+
+
+
+
+
+
+
+
+class TechnicianPanelTests(JobTestBase):
+    def test_home_shows_workflow_customer_and_relative_time(self):
+        self.make_job('installation', 'fusion')
+        self.client.login(username='t_tech', password=PASSWORD)
+        response = self.client.get(reverse('operator_home'))
+        self.assertContains(response, 'فیوژن')        # the workflow
+        self.assertContains(response, 'مشترک تست')    # the customer
+        self.assertContains(response, 'پیش')          # relative time wording
+
+    def test_job_page_has_back_link_info_box_and_tap_to_call(self):
+        job = self.make_job('installation', 'fusion')
+        self.client.login(username='t_tech', password=PASSWORD)
+        response = self.client.get(reverse('job_location', args=[job.pk]))
+        self.assertContains(response, f'href="{reverse("operator_home")}"')
+        self.assertContains(response, 'href="tel:09120000000"')
+        self.assertContains(response, 'سمنان')

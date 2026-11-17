@@ -10,12 +10,13 @@ from openpyxl.utils import get_column_letter
 
 from inventory.models import Material
 from jobs.models import Job, JobMaterialUsage
+from accounts.templatetags.jalali_tags import jalali
 
 HEADERS = [
     'شناسه اشتراک', 'نام مشترک', 'موبایل', 'آدرس',
-    'شهر', 'مرکز', 'تاریخ ثبت‌نام', 'وضعیت',
+    'شهر', 'مرکز', 'تاریخ ثبت‌نام', 'تاریخ آخرین تغییر', 'وضعیت',
 ]
-COLUMN_WIDTHS = [16, 26, 16, 45, 14, 22, 22, 45]
+COLUMN_WIDTHS = [16, 26, 16, 45, 14, 22, 22, 22, 45]
 MATERIAL_COLUMN_WIDTH = 16
 BILLABLE_STATUSES = (Job.Status.SUBMITTED, Job.Status.REVIEWED)
 
@@ -83,6 +84,7 @@ def build_customers_workbook(customers):
             c.city.name,
             c.center,
             _jalali_text(c.registered_at),
+            jalali(getattr(c, 'last_activity', None)) or None,
             c.current_status_display(),
         ] + [
             float(customer_totals[m.code]) if m.code in customer_totals else None

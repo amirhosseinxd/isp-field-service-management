@@ -1,6 +1,6 @@
-{% extends 'accounts/base.html' %}
+{% extends 'jobs/job_base.html' %}
 {% block title %}ارسال کار{% endblock %}
-{% block content %}
+{% block job_content %}
 {% include 'jobs/_stepper.html' %}
 <div class="card">
   <h2>توضیحات و ارسال   {% if job.status == 'returned' %}
