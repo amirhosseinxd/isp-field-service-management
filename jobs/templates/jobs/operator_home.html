@@ -23,8 +23,16 @@
   <h3>ارسال‌شده‌های اخیر</h3>
   {% for job in submitted_jobs %}
     <div class="card" style="margin-bottom:12px">
-     کار شماره {{ job.pk }} — {{ job.get_workflow_display }}
+      کار شماره {{ job.pk }} — {{ job.get_workflow_display }}
       <span class="badge">{{ job.get_status_display }}</span>
+      {% if job.customer %}<div>{{ job.customer.full_name }}</div>{% endif %}
+      {% if job.next_workflow %}
+        <form method="post" action="{% url 'job_continue' job.pk %}"
+              onsubmit="this.querySelector('button').disabled = true;">
+          {% csrf_token %}
+          <button type="submit" class="btn">ادامه: {{ job.next_workflow_label }}</button>
+        </form>
+      {% endif %}
     </div>
   {% endfor %}
 {% endif %}

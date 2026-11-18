@@ -11,9 +11,14 @@ from jobs.models import Job
 
 from .models import Notification
 
+from collections import defaultdict
+
+from .push import push_after_commit, push_new_overdue
+
 OVERDUE_DAYS = 14
 RECENT_LIMIT = 15
 SYNC_INTERVAL_SECONDS = 600
+
 
 
 def notify_job_assigned(job):
@@ -31,8 +36,10 @@ def notify_job_assigned(job):
         Notification.objects.filter(pk=notice.pk).update(
             created_at=timezone.now(), read_at=None, resolved_at=None,
         )
+        created = True
+    if created:
+        push_after_commit(notice.pk)   # a brand new (or revived) notice: tell the technician's devices
     return notice
-
 
 def retire_assignment_notices(job):
     """After a reassignment, the previous technician's notice is no longer relevant."""
@@ -55,6 +62,7 @@ def sync_overdue_notifications(now=None):
     now = now or timezone.now()
     overdue = overdue_jobs(now)
     admins = list(User.objects.filter(role=User.Role.ADMIN, is_active=True))
+    kind = Notification.Kind.JOB_OVERDUE
 
     candidates = []
     for job in overdue.select_related('customer'):
@@ -62,13 +70,20 @@ def sync_overdue_notifications(now=None):
         since = max(job.customer.registered_at + timedelta(days=OVERDUE_DAYS), job.created_at)
         for admin in admins:
             candidates.append(Notification(
-                recipient=admin, kind=Notification.Kind.JOB_OVERDUE, job=job,
+                recipient=admin, kind=kind, job=job,
                 dedupe_key=f'overdue:{job.pk}:{admin.pk}', created_at=since,
             ))
-    # Rows whose dedupe_key already exists are skipped, so repeated runs create nothing new
-    Notification.objects.bulk_create(candidates, batch_size=500, ignore_conflicts=True)
 
-    kind = Notification.Kind.JOB_OVERDUE
+    # Only notices that don't exist yet are new, and only those trigger a browser push
+    existing = set(Notification.objects.filter(kind=kind).values_list('dedupe_key', flat=True))
+    fresh = [c for c in candidates if c.dedupe_key not in existing]
+    Notification.objects.bulk_create(fresh, batch_size=500, ignore_conflicts=True)
+    if fresh:
+        keys_by_recipient = defaultdict(list)
+        for notice in fresh:
+            keys_by_recipient[notice.recipient_id].append(notice.dedupe_key)
+        transaction.on_commit(lambda: push_new_overdue(dict(keys_by_recipient)))
+
     # The situation exists again (for example a date was corrected): bring the notice back
     Notification.objects.filter(kind=kind, resolved_at__isnull=False, job__in=overdue).update(
         resolved_at=None,
@@ -78,6 +93,7 @@ def sync_overdue_notifications(now=None):
         job__in=overdue,
     ).update(resolved_at=now)
     return overdue.count()
+
 
 
 def maybe_sync_overdue():

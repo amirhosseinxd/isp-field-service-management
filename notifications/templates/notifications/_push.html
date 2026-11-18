@@ -1,0 +1,112 @@
+<script>
+(function () {
+  var root = document.getElementById('bell');
+  var box = document.getElementById('push-box');
+  var note = document.getElementById('push-note');
+  var enableBtn = document.getElementById('push-enable');
+  var disableBtn = document.getElementById('push-disable');
+  var vapidKey = root.dataset.vapidKey;
+  var DISABLED_KEY = 'fsm.push.disabled';
+
+  // Needs a secure page (https or localhost) and a browser that supports push
+  var supported = vapidKey && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  if (!supported) { return; }
+  box.hidden = false;
+
+  function isDisabled() {
+    try { return localStorage.getItem(DISABLED_KEY) === '1'; } catch (e) { return false; }
+  }
+  function setDisabled(on) {
+    try {
+      if (on) { localStorage.setItem(DISABLED_KEY, '1'); } else { localStorage.removeItem(DISABLED_KEY); }
+    } catch (e) {}
+  }
+  function csrf() {
+    if (root.dataset.csrf && root.dataset.csrf !== 'NOTPROVIDED') { return root.dataset.csrf; }
+    var input = document.querySelector('input[name=csrfmiddlewaretoken]');
+    return input ? input.value : '';
+  }
+  function post(url, body) {
+    return fetch(url, {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'X-CSRFToken': csrf(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+  }
+  function toKey(base64) {
+    var padding = '='.repeat((4 - base64.length % 4) % 4);
+    var raw = atob((base64 + padding).replace(/-/g, '+').replace(/_/g, '/'));
+    var bytes = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) { bytes[i] = raw.charCodeAt(i); }
+    return bytes;
+  }
+
+  function registration() {
+    return navigator.serviceWorker.register(root.dataset.swUrl, { scope: '/' })
+      .then(function () { return navigator.serviceWorker.ready; });
+  }
+
+  // Makes sure this browser has a subscription and that the server knows it belongs to the current user
+  function ensureSubscription() {
+    return registration().then(function (reg) {
+      return reg.pushManager.getSubscription().then(function (existing) {
+        return existing || reg.pushManager.subscribe({
+          userVisibleOnly: true, applicationServerKey: toKey(vapidKey)
+        });
+      });
+    }).then(function (sub) {
+      return post(root.dataset.subscribeUrl, sub.toJSON()).then(function () { return sub; });
+    });
+  }
+
+  function render() {
+    var permission = Notification.permission;
+    enableBtn.hidden = true;
+    disableBtn.hidden = true;
+    if (permission === 'denied') {
+      note.textContent = 'اعلان مرورگر در تنظیمات مرورگر مسدود شده است.';
+    } else if (permission === 'granted' && !isDisabled()) {
+      note.textContent = 'اعلان مرورگر فعال است.';
+      disableBtn.hidden = false;
+    } else {
+      note.textContent = 'برای دریافت اعلان حتی وقتی صفحه بسته است، فعال کنید.';
+      enableBtn.textContent = permission === 'granted' ? 'فعال‌سازی دوباره' : 'فعال‌سازی اعلان مرورگر';
+      enableBtn.hidden = false;
+    }
+  }
+
+  enableBtn.addEventListener('click', function () {
+    // The permission question is only allowed to appear as the result of a click
+    var ask = Notification.permission === 'granted'
+      ? Promise.resolve('granted') : Promise.resolve(Notification.requestPermission());
+    ask.then(function (result) {
+      if (result !== 'granted') { render(); return; }
+      setDisabled(false);
+      return ensureSubscription().then(render);
+    }).catch(function () { note.textContent = 'فعال‌سازی انجام نشد.'; });
+  });
+
+  disableBtn.addEventListener('click', function () {
+    setDisabled(true);
+    registration().then(function (reg) { return reg.pushManager.getSubscription(); }).then(function (sub) {
+      if (!sub) { return; }
+      return post(root.dataset.unsubscribeUrl, { endpoint: sub.endpoint }).then(function () {
+        return sub.unsubscribe();
+      });
+    }).then(render, render);
+  });
+
+  // A push arrived while this page is open: refresh the bell now instead of waiting for the timer
+  navigator.serviceWorker.addEventListener('message', function (event) {
+    if (event.data && event.data.type === 'notification-pushed') {
+      document.dispatchEvent(new Event('bell:refresh'));
+    }
+  });
+
+  render();
+  // Already allowed on an earlier visit: keep this browser registered to whoever is logged in now
+  if (Notification.permission === 'granted' && !isDisabled()) {
+    ensureSubscription().catch(function () {});
+  }
+})();
+</script>

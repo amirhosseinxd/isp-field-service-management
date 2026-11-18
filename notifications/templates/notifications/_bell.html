@@ -1,7 +1,11 @@
 {% if notif %}
 <div class="bell-wrap" id="bell"
      data-panel-url="{% url 'notification_panel' %}"
-     data-csrf="{{ csrf_token }}">
+     data-csrf="{{ csrf_token }}"
+     data-vapid-key="{{ vapid_public_key }}"
+     data-sw-url="{% url 'service_worker' %}"
+     data-subscribe-url="{% url 'push_subscribe' %}"
+     data-unsubscribe-url="{% url 'push_unsubscribe' %}">
   <button type="button" class="bell-btn" aria-label="اعلان‌ها" aria-expanded="false" aria-haspopup="true">
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
          stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -18,6 +22,11 @@
               data-url="{% url 'notification_read_all' %}">همه را خوانده‌شده کن</button>
     </div>
     <ul class="bell-list">{% include 'notifications/_items.html' %}</ul>
+    <div class="bell-foot" id="push-box" hidden>
+      <span id="push-note"></span>
+      <button type="button" class="bell-action" id="push-enable" hidden>فعال‌سازی اعلان مرورگر</button>
+      <button type="button" class="bell-action" id="push-disable" hidden>غیرفعال کردن</button>
+    </div>
   </div>
 
   <script>
@@ -64,15 +73,20 @@
       post(target.dataset.url).then(function (data) { show(data, true); }).catch(function () {});
     });
 
-    // Fresh data every minute while the page is visible; the list is left alone while it's open
-    setInterval(function () {
+    // Fetch fresh data. The list is left alone while the menu is open.
+    function poll() {
       if (document.hidden) { return; }
       fetch(root.dataset.panelUrl, { credentials: 'same-origin' })
         .then(function (r) { return r.json(); })
         .then(function (data) { show(data, menu.hidden); })
         .catch(function () {});
-    }, 60000);
+    }
+    setInterval(poll, 60000);                       // every minute
+    document.addEventListener('visibilitychange', poll); // when the tab comes back into view
+    document.addEventListener('bell:refresh', poll);     // when a browser push has just arrived
   })();
   </script>
+
+  {% include 'notifications/_push.html' %}
 </div>
 {% endif %}

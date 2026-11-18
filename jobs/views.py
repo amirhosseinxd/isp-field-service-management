@@ -278,6 +278,39 @@ def job_step(request, pk, index):
 
 
 
+@role_required(User.Role.OPERATOR)
+@require_POST
+def job_continue(request, pk):
+    job = get_operator_job(request, pk)
+    following = job.next_workflow()
+    if following is None:
+        messages.error(request, 'ادامه دادن این کار ممکن نیست.')
+        return redirect('operator_home')
+
+    with transaction.atomic():
+        existing = Job.objects.filter(
+            job_type=Job.JobType.INSTALLATION, workflow=following, customer=job.customer,
+        ).first()
+        if existing is None:
+            new_job = Job.objects.create(
+                job_type=Job.JobType.INSTALLATION, workflow=following,
+                assigned_operator=request.user, created_by=request.user, customer=job.customer,
+            )
+
+    if existing is not None:
+        if existing.assigned_operator_id == request.user.id:
+            messages.info(request, 'این کار قبلاً ثبت شده است؛ ادامه می‌دهید.')
+            return redirect('job_start', pk=existing.pk)
+        messages.warning(request, 'این کار قبلاً برای این مشترک ثبت و به تکنسین دیگری ارجاع شده است.')
+        return redirect('operator_home')
+
+    audit_log(
+        request.user, AuditEntry.Action.JOB_CREATED, new_job,
+        details=f'ادامه از کار شماره {job.pk}',
+    )
+    return redirect('job_start', pk=new_job.pk)
+
+
 
 
 
@@ -508,15 +541,22 @@ def job_create(request):
         messages.success(request, f'کار شماره {job.pk} ایجاد و به تکنسین ارجاع شد.')
         return redirect('support_job_detail', pk=job.pk)
 
-    # Tells the browser which workflows belong to each category (see the template script)
+    # Which workflows belong to each category (the page shows only those)
     workflow_map = {
         jt.value: [wf.value for wf in workflows_for_type]
         for jt, workflows_for_type in Job.VALID_WORKFLOWS.items()
     }
-    return render(request, 'jobs/job_create.html', {
-        'form': form, 'workflow_map': workflow_map,
-    })
+    # Which installation workflows each customer already has: {customer id: [workflow, ...]}
+    taken_map = {}
+    taken_rows = Job.objects.filter(
+        job_type=Job.JobType.INSTALLATION, customer__isnull=False,
+    ).values_list('customer_id', 'workflow').distinct()
+    for customer_id, workflow in taken_rows:
+        taken_map.setdefault(customer_id, []).append(workflow)
 
+    return render(request, 'jobs/job_create.html', {
+        'form': form, 'workflow_map': workflow_map, 'taken_map': taken_map,
+    })
 
 
 

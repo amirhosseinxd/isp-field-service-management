@@ -7,6 +7,8 @@
   <p class="hint">
     {% if step.purpose == 'needed' %}
       متریال مورد نیاز برای این کار را انتخاب کنید.
+    {% elif step.fixed_quantity %}
+      یکی از موارد را انتخاب کنید.
     {% else %}
       متریال مصرف‌شده را انتخاب کنید و مقدار هر کدام را وارد کنید.
     {% endif %}
@@ -16,16 +18,18 @@
     {% csrf_token %}
     {{ form.non_field_errors }}
 
-    <div class="mat-list">
+    <div class="mat-list"{% if step.maximum_items == 1 %} data-single="1"{% endif %}>
       {% for material, select, qty in form.rows %}
         <div class="mat-row{% if select.value %} is-selected{% endif %}">
           <label class="mat-label">
             {{ select }}
             <span class="mat-name">{{ material.name }}</span>
-            <span class="mat-unit">{{ material.unit }}</span>
+            {% if qty %}<span class="mat-unit">{{ material.unit }}</span>{% endif %}
           </label>
-          <div class="mat-qty">{{ qty }}</div>
-          {{ qty.errors }}
+          {% if qty %}
+            <div class="mat-qty">{{ qty }}</div>
+            {{ qty.errors }}
+          {% endif %}
         </div>
       {% endfor %}
     </div>
@@ -39,11 +43,29 @@
 </div>
 
 <script>
-  document.querySelectorAll('.mat-row').forEach(function (row) {
+  var listEl = document.querySelector('.mat-list');
+  var single = listEl && listEl.dataset.single === '1';
+  var rows = document.querySelectorAll('.mat-row');
+
+  function syncAll() {
+    rows.forEach(function (row) {
+      row.classList.toggle('is-selected', row.querySelector('input[type="checkbox"]').checked);
+    });
+  }
+
+  rows.forEach(function (row) {
     var box = row.querySelector('input[type="checkbox"]');
-    function sync() { row.classList.toggle('is-selected', box.checked); }
-    box.addEventListener('change', sync);
-    sync();
+    box.addEventListener('change', function () {
+      if (single && box.checked) {
+        // Only one choice is allowed on this step, so ticking one clears the others
+        rows.forEach(function (other) {
+          var otherBox = other.querySelector('input[type="checkbox"]');
+          if (otherBox !== box) { otherBox.checked = false; }
+        });
+      }
+      syncAll();
+    });
   });
+  syncAll();
 </script>
 {% endblock %}

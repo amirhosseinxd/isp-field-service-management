@@ -2,10 +2,9 @@ from django import forms
 from decimal import Decimal, InvalidOperation
 from .models import Job, JobEvidence
 from accounts.models import User
-
+from customers.models import City, Customer
 from inventory.models import Material
 from accounts.jalali_forms import JalaliDateField
-from customers.models import Customer
 MAX_PHOTO_MB = 15
 MAX_FILES_PER_UPLOAD = 10
 MAX_PHOTOS_PER_STAGE = 20
@@ -177,9 +176,8 @@ class SpeedQuestionForm(forms.Form):
 
 
 
-
 class MaterialsSelectionForm(forms.Form):
-    """One checkbox and one quantity box per allowed material, built at runtime."""
+    """One checkbox per allowed material, plus a quantity box unless the step fixes the quantity."""
 
     def __init__(self, *args, materials, step, **kwargs):
         super().__init__(*args, **kwargs)
@@ -188,26 +186,35 @@ class MaterialsSelectionForm(forms.Form):
         self.selected = []
         for m in self.materials:
             self.fields[f'select_{m.code}'] = forms.BooleanField(required=False, label=m.name)
-            mode = 'decimal' if m.unit == Material.UNIT_METER else 'numeric'
-            self.fields[f'qty_{m.code}'] = forms.DecimalField(
-                required=False, min_value=Decimal('0.01'),
-                max_digits=10, decimal_places=2,
-                widget=forms.TextInput(attrs={
-                    'class': 'ltr', 'inputmode': mode, 'placeholder': m.unit,
-                }),
-                label=m.name,
-            )
+            if step.fixed_quantity is None:
+                mode = 'decimal' if m.unit == Material.UNIT_METER else 'numeric'
+                self.fields[f'qty_{m.code}'] = forms.DecimalField(
+                    required=False, min_value=Decimal('0.01'),
+                    max_digits=10, decimal_places=2,
+                    widget=forms.TextInput(attrs={
+                        'class': 'ltr', 'inputmode': mode, 'placeholder': m.unit,
+                    }),
+                    label=m.name,
+                )
 
     @property
     def rows(self):
-        """(material, checkbox, quantity) for each material, for the template loop."""
-        return [(m, self[f'select_{m.code}'], self[f'qty_{m.code}']) for m in self.materials]
+        """(material, checkbox, quantity box or None) for each material, for the template loop."""
+        rows = []
+        for m in self.materials:
+            qty_name = f'qty_{m.code}'
+            qty = self[qty_name] if qty_name in self.fields else None
+            rows.append((m, self[f'select_{m.code}'], qty))
+        return rows
 
     def clean(self):
         cleaned = super().clean()
         selected = []
         for m in self.materials:
             if not cleaned.get(f'select_{m.code}'):
+                continue
+            if self.step.fixed_quantity is not None:
+                selected.append((m, Decimal(self.step.fixed_quantity)))
                 continue
             quantity = cleaned.get(f'qty_{m.code}')
             if quantity is None:
@@ -225,19 +232,31 @@ class MaterialsSelectionForm(forms.Form):
                 raise forms.ValidationError(problem)
         return cleaned
 
-
-
-
-
 class CustomerChoiceField(forms.ModelChoiceField):
     def label_from_instance(self, customer):
         return f'{customer.full_name} — {customer.subscription_id} — {customer.city.name}'
+
+class CustomerSelect(forms.Select):
+    """A normal dropdown whose options carry the data the search box and city filter use."""
+
+    def create_option(self, name, value, label, selected, index, subindex=None, attrs=None):
+        option = super().create_option(name, value, label, selected, index, subindex, attrs)
+        customer = getattr(value, 'instance', None)
+        if customer is not None:
+            option['attrs']['data-city'] = str(customer.city_id)
+            option['attrs']['data-search'] = f'{customer.full_name} {customer.subscription_id}'
+        return option
 
 
 class JobCreateForm(forms.ModelForm):
     assigned_operator = OperatorChoiceField(label='تکنسین', queryset=operators())
     customer = CustomerChoiceField(
-        label='مشترک', queryset=Customer.objects.select_related('city'),
+        label='مشترک', queryset=Customer.objects.select_related('city'), widget=CustomerSelect,
+    )
+    # These two only narrow the customer list on the page. They are not saved with the job.
+    customer_search = forms.CharField(label='جستجوی مشترک (نام یا شناسه)', required=False)
+    city_filter = forms.ModelChoiceField(
+        label='فیلتر شهر', queryset=City.objects.all(), required=False, empty_label='همه شهرها',
     )
 
     class Meta:
@@ -248,7 +267,18 @@ class JobCreateForm(forms.ModelForm):
             'workflow': 'نوع کار',
         }
 
-
+    def clean(self):
+        cleaned = super().clean()
+        job_type = cleaned.get('job_type')
+        workflow = cleaned.get('workflow')
+        customer = cleaned.get('customer')
+        if job_type == Job.JobType.INSTALLATION and workflow and customer:
+            already = Job.objects.filter(
+                job_type=Job.JobType.INSTALLATION, workflow=workflow, customer=customer,
+            ).exists()
+            if already:
+                self.add_error('customer', 'این مشترک قبلاً این نوع کار نصب را داشته است.')
+        return cleaned
 
 class ReturnForm(forms.Form):
     reason = forms.CharField(

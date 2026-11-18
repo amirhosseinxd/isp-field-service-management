@@ -9,7 +9,7 @@ from django.db.models.deletion import ProtectedError
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
-
+from notifications.models import Notification
 from accounts.models import User
 from customers.models import City, Customer
 from inventory.models import Material
@@ -86,10 +86,10 @@ class JobTestBase(TestCase):
 
 class WorkflowRuleTests(JobTestBase):
     def test_invalid_pair_is_rejected_by_database(self):
-        # Repair + FTTH inquiry is not allowed
+        # A malfunction repair job can't use the fusion workflow
         with self.assertRaises(IntegrityError), transaction.atomic():
             Job.objects.create(
-                job_type='repair', workflow='ftth_inquiry',
+                job_type='malfunction_repair', workflow='fusion',
                 assigned_operator=self.tech, created_by=self.admin,
             )
 
@@ -107,15 +107,16 @@ class WorkflowRuleTests(JobTestBase):
         self.add_evidence(job, Cat.VIDEO, kind=Kind.VIDEO, name='x.mp4')
         self.assertFalse(any('ویدیو' in m for m in self.missing(job)))
 
-    def test_fusion_with_splitter_needs_four_photo_steps(self):
+    def test_fusion_with_splitter_needs_receipt_and_four_photo_steps(self):
         job = self.make_job('installation', 'fusion', fat_needs_splitter=True)
         self.use_material(job, 'M010')  # آداپتور دوبل
         self.use_material(job, 'M012')  # اسپلیتر 16*1
-        self.assertEqual(len(self.missing(job)), 5)  # 4 photo steps + description
+        self.assertEqual(len(self.missing(job)), 6)  # receipt + 4 photo steps + description
 
-        for category in (Cat.SPLITTER_BEFORE, Cat.SPLITTER_AFTER, Cat.CASSETTE, Cat.FAT):
+        for category in (Cat.RECEIPT, Cat.SPLITTER_BEFORE, Cat.SPLITTER_AFTER, Cat.CASSETTE, Cat.FAT):
             self.add_evidence(job, category)
         self.assertEqual(len(self.missing(job)), 1)  # only the description
+
 
     def test_fusion_splitter_must_be_exactly_one_type(self):
         job = self.make_job('installation', 'fusion', fat_needs_splitter=True)
@@ -124,12 +125,13 @@ class WorkflowRuleTests(JobTestBase):
         self.use_material(job, 'M013')  # two splitters
         self.assertTrue(any('دقیقاً یکی' in m or 'حداکثر' in m for m in self.missing(job)))
 
-    def test_fusion_without_splitter_needs_five_photos(self):
+    def test_fusion_without_splitter_needs_receipt_and_five_photos(self):
         job = self.make_job('installation', 'fusion', fat_needs_splitter=False)
         self.use_material(job, 'M014')  # ATB
+        self.add_evidence(job, Cat.RECEIPT)
         for _ in range(4):
             self.add_evidence(job, Cat.GENERAL)
-        self.assertTrue(any('عکس' in m for m in self.missing(job)))  # one still missing
+        self.assertTrue(any('عکس' in m for m in self.missing(job)))  # one photo still missing
 
         self.add_evidence(job, Cat.GENERAL)
         self.assertEqual(len(self.missing(job)), 1)  # only the description
@@ -149,7 +151,7 @@ class WorkflowRuleTests(JobTestBase):
         self.assertTrue(any('مودم' in m for m in self.missing(job)))
 
     def test_tokar_steps_only_apply_when_used(self):
-        job = self.make_job('repair', 'drop_cable', tokar_used=False)
+        job = self.make_job('installation', 'drop_cable', tokar_used=False)
         keys = [s.key for s in workflows.applicable_steps(job)]
         self.assertNotIn('متراژ توکار', keys)
 
@@ -159,7 +161,7 @@ class WorkflowRuleTests(JobTestBase):
         self.assertIn('عکس توکار', keys)
 
     def test_piece_quantities_must_be_whole_numbers(self):
-        job = self.make_job('repair', 'drop_cable')
+        job = self.make_job('installation', 'drop_cable')
         with self.assertRaises(ValidationError):
             JobMaterialUsage(job=job, material=Material.objects.get(code='M009'),
                              quantity=Decimal('2.5')).clean()  # قلاب is counted in pieces
@@ -194,6 +196,24 @@ class WorkflowRuleTests(JobTestBase):
         job.submit(self.tech, 'desc')
         with self.assertRaises(ValueError):
             job.submit(self.tech, 'desc again')
+    def test_receipt_is_a_fusion_step_right_after_location_not_a_drop_cable_step(self):
+        drop = [s.key for s in workflows.applicable_steps(
+            self.make_job('installation', 'drop_cable', tokar_used=False))]
+        fusion = [s.key for s in workflows.applicable_steps(self.make_job('installation', 'fusion'))]
+        self.assertNotIn('عکس رسید', drop)
+        self.assertEqual(fusion[0], 'عکس رسید')
+
+    def test_ftth_needs_materials_needs_only_one_photo(self):
+        job = self.make_job('installation', 'ftth_inquiry', ftth_outcome='needs_materials')
+        self.assertTrue(any('عکس' in m for m in self.missing(job)))
+        self.add_evidence(job, Cat.GENERAL)
+        self.assertFalse(any('عکس' in m for m in self.missing(job)))
+
+    def test_materials_were_renamed_and_nothing_else_changed(self):
+        names = dict(Material.objects.filter(code__in=['M001', 'M004', 'M016']).values_list('code', 'name'))
+        self.assertEqual(names, {'M001': 'دراپ 2کر', 'M004': 'مینی', 'M016': 'پچکورد'})
+        self.assertEqual(Material.objects.get(code='M001').unit, 'متر')
+        self.assertEqual(Material.objects.count(), 19)
 
 
 class ReturnCycleTests(JobTestBase):
@@ -441,3 +461,156 @@ class TechnicianReportTests(JobTestBase):
     def test_technicians_cannot_open_the_report(self):
         self.client.login(username='t_tech', password=PASSWORD)
         self.assertEqual(self.client.get(reverse('technician_report')).status_code, 403)
+
+
+
+
+
+
+
+
+
+
+
+class ModemStepTests(JobTestBase):
+    def service_delivery_job(self):
+        return self.make_job(
+            'installation', 'service_delivery',
+            latitude=Decimal('35.1'), longitude=Decimal('51.1'),
+            upload_mbps=Decimal('10'), download_mbps=Decimal('20'),
+        )
+
+    def test_modem_screen_has_no_quantity_box_and_records_one(self):
+        job = self.service_delivery_job()
+        self.client.login(username='t_tech', password=PASSWORD)
+        url = reverse('job_step', args=[job.pk, 2])     # the modem step
+        page = self.client.get(url)
+        self.assertEqual(page.status_code, 200)
+        self.assertNotContains(page, 'name="qty_M018"')
+
+        self.client.post(url, {'select_M018': 'on'})
+        usage = job.material_usages.get()
+        self.assertEqual((usage.material_code, usage.quantity), ('M018', Decimal('1')))
+
+    def test_choosing_both_modems_is_refused(self):
+        job = self.service_delivery_job()
+        self.client.login(username='t_tech', password=PASSWORD)
+        self.client.post(
+            reverse('job_step', args=[job.pk, 2]), {'select_M018': 'on', 'select_M019': 'on'},
+        )
+        self.assertEqual(job.material_usages.count(), 0)
+
+
+class SupportJobCreateTests(JobTestBase):
+    def post_job(self, **data):
+        self.client.login(username='t_admin', password=PASSWORD)
+        body = {
+            'job_type': 'installation', 'workflow': 'fusion',
+            'assigned_operator': self.tech.pk, 'customer': self.customer.pk,
+        }
+        body.update(data)
+        return self.client.post(reverse('job_create'), body)
+
+    def test_the_same_installation_workflow_cannot_be_given_to_a_customer_twice(self):
+        self.assertEqual(self.post_job().status_code, 302)
+        response = self.post_job()
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'قبلاً این نوع کار نصب')
+        self.assertEqual(Job.objects.filter(customer=self.customer, workflow='fusion').count(), 1)
+
+    def test_a_different_workflow_for_the_same_customer_is_fine(self):
+        self.post_job()
+        self.assertEqual(self.post_job(workflow='drop_cable').status_code, 302)
+
+    def test_malfunction_repair_can_repeat(self):
+        for _ in range(2):
+            response = self.post_job(job_type='malfunction_repair', workflow='malfunction')
+            self.assertEqual(response.status_code, 302)
+        self.assertEqual(Job.objects.filter(customer=self.customer, workflow='malfunction').count(), 2)
+
+    def test_page_gives_the_filters_what_they_need(self):
+        self.make_job('installation', 'fusion')
+        self.client.login(username='t_admin', password=PASSWORD)
+        response = self.client.get(reverse('job_create'))
+        self.assertContains(response, f'data-city="{self.customer.city_id}"')
+        self.assertEqual(response.context['taken_map'], {self.customer.pk: ['fusion']})
+
+
+class ContinueWorkflowTests(JobTestBase):
+    def submitted(self, workflow, status=Job.Status.SUBMITTED):
+        return self.make_job('installation', workflow, status=status)
+
+    def test_which_workflow_follows_which(self):
+        self.assertEqual(self.submitted('ftth_inquiry').next_workflow(), 'drop_cable')
+        self.assertEqual(self.submitted('drop_cable').next_workflow(), 'fusion')
+        self.assertEqual(self.submitted('fusion').next_workflow(),'service_delivery')
+        self.assertIsNone(self.submitted('service_delivery').next_workflow())
+
+    def test_nothing_follows_an_unfinished_job_or_a_job_without_a_customer(self):
+        self.assertIsNone(self.make_job('installation', 'ftth_inquiry').next_workflow())
+        orphan = self.submitted('ftth_inquiry')
+        Job.objects.filter(pk=orphan.pk).update(customer=None)
+        orphan.refresh_from_db()
+        self.assertIsNone(orphan.next_workflow())
+
+    def test_technician_continues_with_the_next_workflow(self):
+        job = self.submitted('ftth_inquiry')
+        self.client.login(username='t_tech', password=PASSWORD)
+        response = self.client.post(reverse('job_continue', args=[job.pk]))
+        new_job = Job.objects.get(customer=self.customer, workflow='drop_cable')
+        self.assertRedirects(
+            response, reverse('job_start', args=[new_job.pk]), fetch_redirect_response=False,
+        )
+        self.assertEqual(new_job.assigned_operator, self.tech)
+        self.assertEqual(new_job.created_by, self.tech)
+        self.assertEqual(new_job.job_type, 'installation')
+        self.assertEqual(new_job.status, Job.Status.ASSIGNED)
+        self.assertFalse(Notification.objects.filter(job=new_job).exists())  # no notice for yourself
+
+    def test_continuing_twice_does_not_create_a_second_job(self):
+        job = self.submitted('ftth_inquiry')
+        self.client.login(username='t_tech', password=PASSWORD)
+        self.client.post(reverse('job_continue', args=[job.pk]))
+        self.client.post(reverse('job_continue', args=[job.pk]))
+        self.assertEqual(Job.objects.filter(customer=self.customer, workflow='drop_cable').count(), 1)
+
+    def test_an_existing_follow_up_job_blocks_a_duplicate(self):
+        job = self.submitted('ftth_inquiry')
+        self.make_job('installation', 'drop_cable', operator=self.other_tech)  # support already referred it
+        self.client.login(username='t_tech', password=PASSWORD)
+        self.client.post(reverse('job_continue', args=[job.pk]))
+        self.assertEqual(Job.objects.filter(customer=self.customer, workflow='drop_cable').count(), 1)
+
+    def test_other_technicians_and_unfinished_jobs_cannot_continue(self):
+        job = self.submitted('ftth_inquiry')
+        self.client.login(username='t_other', password=PASSWORD)
+        self.assertEqual(self.client.post(reverse('job_continue', args=[job.pk])).status_code, 404)
+
+        draft = self.make_job('installation', 'ftth_inquiry')
+        self.client.login(username='t_tech', password=PASSWORD)
+        self.client.post(reverse('job_continue', args=[draft.pk]))
+        self.assertFalse(Job.objects.filter(workflow='drop_cable').exists())
+
+    def test_home_shows_the_continue_button(self):
+        self.submitted('ftth_inquiry')
+        self.client.login(username='t_tech', password=PASSWORD)
+        self.assertContains(self.client.get(reverse('operator_home')), 'ادامه: دراپ کشی')
+
+
+class LastStepButtonTests(JobTestBase):
+    def test_button_appears_on_earlier_steps_only_and_the_progress_bar_links_back(self):
+        job = self.make_job(
+            'installation', 'ftth_inquiry', ftth_outcome='needs_materials',
+            latitude=Decimal('35.1'), longitude=Decimal('51.1'),
+        )
+        # Location and the outcome are done, so the photos step (index 1) is where work stands
+        current = reverse('job_step', args=[job.pk, 1])
+        self.client.login(username='t_tech', password=PASSWORD)
+
+        earlier = self.client.get(reverse('job_step', args=[job.pk, 0]))
+        self.assertContains(earlier, 'آخرین مرحله')
+        self.assertContains(earlier, f'href="{current}"')
+        self.assertContains(earlier, f'href="{reverse("job_location", args=[job.pk])}"')
+
+        here = self.client.get(current)
+        self.assertNotContains(here, 'آخرین مرحله')

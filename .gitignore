@@ -13,3 +13,6 @@ media/
 # Secrets and logs
 .env
 *.log
+
+
+vapid_private.pem

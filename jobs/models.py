@@ -12,9 +12,7 @@ from audit.services import log as audit_log
 class Job(models.Model):
     class JobType(models.TextChoices):
         INSTALLATION = 'installation', 'نصب'
-        REPAIR = 'repair', 'تعمیر'
         MALFUNCTION_REPAIR = 'malfunction_repair', 'رفع خرابی'
-
 
     
 
@@ -50,11 +48,16 @@ class Job(models.Model):
             Workflow.FTTH_INQUIRY, Workflow.DROP_CABLE,
             Workflow.FUSION, Workflow.SERVICE_DELIVERY,
         ],
-        JobType.REPAIR: [
-            Workflow.DROP_CABLE, Workflow.FUSION, Workflow.SERVICE_DELIVERY,
-        ],
         JobType.MALFUNCTION_REPAIR: [Workflow.MALFUNCTION],
     }
+
+    # After finishing one installation workflow, a technician can go on to the next one
+    NEXT_INSTALLATION_WORKFLOW = {
+        Workflow.FTTH_INQUIRY: Workflow.DROP_CABLE,
+        Workflow.DROP_CABLE: Workflow.FUSION,
+        Workflow.FUSION: Workflow.SERVICE_DELIVERY,
+    }
+
 
     class LocationSource(models.TextChoices):
         GPS = 'gps', 'GPS'
@@ -122,14 +125,11 @@ class Job(models.Model):
                         job_type='installation',
                         workflow__in=['ftth_inquiry', 'drop_cable', 'fusion', 'service_delivery'],
                     )
-                    | models.Q(
-                        job_type='repair',
-                        workflow__in=['drop_cable', 'fusion', 'service_delivery'],
-                    )
                     | models.Q(job_type='malfunction_repair', workflow='malfunction')
                 ),
             ),
         ]
+
 
     def __str__(self):
         return f"Job #{self.pk} - {self.get_job_type_display()} / {self.get_workflow_display()}"
@@ -164,7 +164,19 @@ class Job(models.Model):
     def has_location(self):
         return self.latitude is not None and self.longitude is not None
 
-    
+
+    def next_workflow(self):
+        """The workflow the technician may continue with after this one, or None."""
+        if self.job_type != self.JobType.INSTALLATION or self.customer_id is None:
+            return None
+        if self.status not in (self.Status.SUBMITTED, self.Status.REVIEWED):
+            return None
+        return self.NEXT_INSTALLATION_WORKFLOW.get(self.workflow)
+
+    def next_workflow_label(self):
+        following = self.next_workflow()
+        return self.Workflow(following).label if following else ''
+
 
     @transaction.atomic
     def submit(self, user, description):

@@ -53,6 +53,7 @@ class MaterialsStep:
     required_codes: tuple = ()     # these must always be picked
     exactly_one_of: tuple = ()     # exactly one of these must be picked
     purpose: str = 'used'          # 'used' or 'needed'
+    fixed_quantity: Optional[int] = None   # when set, the technician doesn't type a quantity
     applies_to: Callable[['Job'], bool] = lambda job: True
 
     def usages(self, job):
@@ -107,7 +108,7 @@ WORKFLOWS = {
         QuestionStep(key='نتیجه امکان‌سنجی', field_name='ftth_outcome'),
 
         PhotoStep(
-            key='عکس', category=JobEvidence.Category.GENERAL, minimum=2,
+            key='عکس', category=JobEvidence.Category.GENERAL, minimum=1,
             applies_to=lambda job: job.ftth_outcome == FTTH_NEEDS_MATERIALS,
         ),
         MaterialsStep(
@@ -132,7 +133,6 @@ WORKFLOWS = {
         PhotoStep(key='عکس دراپ', category=JobEvidence.Category.CABLE_LOCATION, minimum=3),
         PhotoStep(key='عکس FAT', category=JobEvidence.Category.FAT, minimum=1),
         PhotoStep(key='عکس ورودی', category=JobEvidence.Category.ENTRANCE, minimum=1),
-        PhotoStep(key='عکس رسید', category=JobEvidence.Category.RECEIPT, minimum=1),
 
         QuestionStep(key='استفاده از توکار', field_name='tokar_used'),
         MaterialsStep(
@@ -148,6 +148,7 @@ WORKFLOWS = {
     ],
 
     Job.Workflow.FUSION: [
+        PhotoStep(key='عکس رسید', category=JobEvidence.Category.RECEIPT, minimum=1),
         QuestionStep(key='نیاز به اسپلیتر', field_name='fat_needs_splitter'),
 
         MaterialsStep(
@@ -192,6 +193,7 @@ WORKFLOWS = {
         QuestionStep(key='سرعت دانلود', field_name='download_mbps'),
         MaterialsStep(
             key='مودم', allowed_codes=('M018', 'M019'), minimum_items=1, maximum_items=1,
+            fixed_quantity=1,
         ),
         PhotoStep(key='عکس صورت جلسه', category=JobEvidence.Category.MOM, minimum=1),
         PhotoStep(key='عکس تست پان', category=JobEvidence.Category.PON_TEST, minimum=1),

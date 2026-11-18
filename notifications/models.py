@@ -30,3 +30,24 @@ class Notification(models.Model):
         if self.kind == self.Kind.JOB_ASSIGNED:
             return reverse('job_start', args=[self.job_id])        # the technician opens the job
         return reverse('support_job_detail', args=[self.job_id])   # support opens the job's details
+
+
+
+
+
+
+
+class PushSubscription(models.Model):
+    """One browser on one device that has agreed to receive pushes for one user."""
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='push_subscriptions',
+    )
+    endpoint = models.TextField(unique=True)
+    p256dh = models.CharField(max_length=255)
+    auth = models.CharField(max_length=255)
+    session_key = models.CharField(max_length=64, blank=True)
+    user_agent = models.CharField(max_length=300, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f'{self.user} — {self.endpoint[:40]}'

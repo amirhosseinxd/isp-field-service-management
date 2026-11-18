@@ -13,37 +13,102 @@
   <form method="post">
     {% csrf_token %}
     {{ form.non_field_errors }}
-    {% for field in form %}
-      <label>{{ field.label }}</label>
-      {{ field.errors }}
-      {{ field }}
-    {% endfor %}
+
+    <label>{{ form.job_type.label }}</label>
+    {{ form.job_type.errors }}{{ form.job_type }}
+
+    <label>{{ form.workflow.label }}</label>
+    {{ form.workflow.errors }}{{ form.workflow }}
+
+    <label>{{ form.assigned_operator.label }}</label>
+    {{ form.assigned_operator.errors }}{{ form.assigned_operator }}
+
+    <label>{{ form.customer_search.label }}</label>
+    {{ form.customer_search }}
+
+    <label>{{ form.city_filter.label }}</label>
+    {{ form.city_filter }}
+
+    <label>{{ form.customer.label }}
+      <span class="hint">(<span id="customer-count"></span> مورد)</span>
+    </label>
+    {{ form.customer.errors }}{{ form.customer }}
+    <p class="hint">
+      برای کارهای نصب، مشترکانی که این نوع کار را قبلاً داشته‌اند در فهرست نمایش داده نمی‌شوند.
+    </p>
+
     <button type="submit" class="btn">ایجاد و ارجاع به تکنسین</button>
   </form>
 </div>
 
 {{ workflow_map|json_script:"workflow-map" }}
+{{ taken_map|json_script:"taken-map" }}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-  var map = JSON.parse(document.getElementById('workflow-map').textContent);
+  var workflowMap = JSON.parse(document.getElementById('workflow-map').textContent);
+  var takenMap = JSON.parse(document.getElementById('taken-map').textContent);
   var jobType = document.getElementById('id_job_type');
   var workflow = document.getElementById('id_workflow');
+  var customer = document.getElementById('id_customer');
+  var search = document.getElementById('id_customer_search');
+  var cityFilter = document.getElementById('id_city_filter');
+  var counter = document.getElementById('customer-count');
 
-  function refresh() {
-    var allowed = map[jobType.value] || [];
+  // Only the workflows that belong to the chosen category
+  function refreshWorkflows() {
+    var allowed = workflowMap[jobType.value] || [];
     Array.prototype.forEach.call(workflow.options, function (opt) {
-      if (!opt.value) return;
+      if (!opt.value) { return; }
       var ok = allowed.indexOf(opt.value) !== -1;
       opt.hidden = !ok;
       opt.disabled = !ok;
     });
-    if (workflow.value && allowed.indexOf(workflow.value) === -1) {
-      workflow.value = '';
-    }
+    if (workflow.value && allowed.indexOf(workflow.value) === -1) { workflow.value = ''; }
   }
 
-  jobType.addEventListener('change', refresh);
-  refresh();
+  // Makes "ي" and "ي", "ك" and "ک", and joined or separate letters, match each other
+  function normalize(text) {
+    return (text || '').toLowerCase()
+      .replace(/\u064A/g, '\u06CC').replace(/\u0643/g, '\u06A9')
+      .replace(/\u200c/g, '').trim();
+  }
+
+  // A copy of every customer, so the dropdown can be rebuilt as the filters change
+  var everyone = Array.prototype.map.call(customer.options, function (opt) {
+    return {
+      value: opt.value, label: opt.text,
+      city: opt.dataset.city || '', search: normalize(opt.dataset.search || '')
+    };
+  });
+
+  function refreshCustomers() {
+    var chosen = customer.value;
+    var query = normalize(search.value);
+    var city = cityFilter.value;
+    // For installation jobs, customers who already have this workflow are left out
+    var taken = (jobType.value === 'installation' && workflow.value) ? workflow.value : '';
+    var shown = 0;
+
+    customer.innerHTML = '';
+    everyone.forEach(function (item) {
+      if (item.value) {   // the empty "---------" option is always kept
+        if (city && item.city !== city) { return; }
+        if (query && item.search.indexOf(query) === -1) { return; }
+        if (taken && (takenMap[item.value] || []).indexOf(taken) !== -1) { return; }
+        shown++;
+      }
+      customer.add(new Option(item.label, item.value, false, item.value === chosen));
+    });
+    counter.textContent = shown.toLocaleString('fa-IR');
+  }
+
+  jobType.addEventListener('change', function () { refreshWorkflows(); refreshCustomers(); });
+  workflow.addEventListener('change', refreshCustomers);
+  search.addEventListener('input', refreshCustomers);
+  cityFilter.addEventListener('change', refreshCustomers);
+
+  refreshWorkflows();
+  refreshCustomers();
 });
 </script>
 {% endblock %}

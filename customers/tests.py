@@ -57,7 +57,7 @@ class CustomerModelTests(TestCase):
         admin = User.objects.create_user(username='c_admin', password='x', role=User.Role.ADMIN)
         tech = User.objects.create_user(username='c_tech', password='x', role=User.Role.OPERATOR)
         Job.objects.create(
-            job_type='repair', workflow='drop_cable', assigned_operator=tech,
+            job_type='installation', workflow='drop_cable', assigned_operator=tech,
             created_by=admin, customer=customer,
         )
         with self.assertRaises(ProtectedError):

@@ -147,3 +147,9 @@ USE_TZ = True
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+
+
+# Browser push (Web Push). The key file is created by `python manage.py generate_vapid_keys`
+VAPID_PRIVATE_KEY_FILE = BASE_DIR / 'vapid_private.pem'
+VAPID_ADMIN_SUBJECT = 'mailto:you@example.com'   # put a real contact address here

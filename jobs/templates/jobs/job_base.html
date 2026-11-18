@@ -1,8 +1,15 @@
 {% extends 'accounts/base.html' %}
+{% load job_tags %}
 {% block main_class %}job-page{% endblock %}
 {% block content %}
+{% last_step_url job as last_url %}
 <div class="job-wrap">
-  <a class="back-link" href="{% url 'operator_home' %}">→ بازگشت به لیست کارها</a>
+  <div class="job-nav">
+    <a class="back-link" href="{% url 'operator_home' %}">→ بازگشت به لیست کارها</a>
+    {% if last_url != request.path %}
+      <a class="back-link" href="{{ last_url }}">رفتن به آخرین مرحله ←</a>
+    {% endif %}
+  </div>
 
   <div class="job-layout">
     {% include 'jobs/_job_info.html' %}
