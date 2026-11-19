@@ -1,4 +1,4 @@
-{% load ui_tags %}<!DOCTYPE html>
+{% load static ui_tags %}<!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
   <meta charset="utf-8">
@@ -36,7 +36,15 @@
     *, *::before, *::after { box-sizing: border-box; }
     html { -webkit-text-size-adjust: 100%; }
     body { margin: 0; font-family: 'Vazirmatn', 'Segoe UI', Tahoma, system-ui, sans-serif;
-           font-size: 15px; line-height: 1.7; color: var(--text); background: var(--bg);
+           font-size: 15px; line-height: 1.7; color: var(--text);
+           background-color: #fde4ec;
+           background-image:
+             linear-gradient(rgba(255, 255, 255, 0.25), rgba(255, 255, 255, 0.25)),
+             url("{% static 'images/background.jpg' %}");
+           background-size: cover;
+           background-position: center bottom;
+           background-attachment: fixed;
+           min-height: 100vh;
            -webkit-font-smoothing: antialiased; }
     a { color: var(--primary); text-decoration: none; }
     a:hover { text-decoration: underline; }
