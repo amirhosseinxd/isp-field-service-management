@@ -63,3 +63,24 @@ def progress(job, active_index=None):
             'url': None if state == 'locked' else step_url(job, i),
         })
     return items
+
+
+
+
+
+
+def step_sequence(job):
+    """Addresses of every step in order: the location first, then the steps that apply to this job."""
+    return [reverse('job_location', args=[job.pk])] + [
+        step_url(job, i) for i in applicable_indexes(job)
+    ]
+
+
+def previous_url(job, current_path):
+    """The address of the step before the one at current_path, or None on the first step."""
+    urls = step_sequence(job)
+    if current_path in urls:
+        position = urls.index(current_path)
+        if position > 0:
+            return urls[position - 1]
+    return None

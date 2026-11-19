@@ -5,3 +5,10 @@
     </li>
   {% endfor %}
 </ol>
+<script>
+  // On a phone the bar scrolls sideways, so bring the step you're on into view
+  (function () {
+    var here = document.querySelector('.steps .step.active') || document.querySelector('.steps .step.current');
+    if (here) { here.scrollIntoView({ inline: 'center', block: 'nearest' }); }
+  })();
+</script>

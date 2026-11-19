@@ -50,13 +50,25 @@ def _clean_mobile(value):
         text = '0' + text  # Excel drops Iranian mobile numbers' leading 0
     return text
 
+def normalize_name(text):
+    """A spelling-insensitive form of a name: ignores spaces and half-spaces, unifies ی/ي and ک/ك."""
+    text = str(text or '').replace('\u064A', '\u06CC').replace('\u0643', '\u06A9')
+    for character in (' ', '\u200c', '\u200e', '\u200f', '\u00a0'):
+        text = text.replace(character, '')
+    return text.lower()
 
-def _clean_city(value):
+
+def city_lookup():
+    """Every city, keyed by its normalized name."""
+    return {normalize_name(city.name): city for city in City.objects.all()}
+
+
+def _clean_city(value, cities):
     name = str(value).strip() if value is not None else ''
-    try:
-        return City.objects.get(name=name)
-    except City.DoesNotExist:
+    city = cities.get(normalize_name(name))
+    if city is None:
         raise RowError(f'شهر نامعتبر یا خارج از فهرست ثابت: {name!r}')
+    return city
 
 
 def _clean_center_number(value):
@@ -83,13 +95,14 @@ def _clean_registered_at(value):
     return timezone.make_aware(dt)
 
 
-def parse_row(values):
+def parse_row(values, cities=None):
     """values: a dict with the keys in COLUMNS, already read from one Excel row."""
+    cities = cities if cities is not None else city_lookup()
     subscription_id = _clean_subscription_id(values['subscription_id'])
     full_name = str(values['full_name']).strip() if values['full_name'] not in (None, '') else ''
     mobile = _clean_mobile(values['mobile'])
     address = str(values['address']).strip() if values['address'] not in (None, '') else ''
-    city = _clean_city(values['city'])
+    city = _clean_city(values['city'], cities)
     center_number = _clean_center_number(values['center'])
     registered_at = _clean_registered_at(values['registered_at'])
     status_label = str(values['status']).strip() if values['status'] not in (None, '') else ''
@@ -114,13 +127,14 @@ def import_rows(rows):
     created = 0
     updated = 0
     errors = []
+    cities = city_lookup() # built once, not once per row
 
     for row_number, values in rows:
         if all(v in (None, '') for v in values.values()):
             continue  # a fully blank row, skip quietly
 
         try:
-            data = parse_row(values)
+            data = parse_row(values, cities)
         except RowError as exc:
             errors.append((row_number, str(exc)))
             continue

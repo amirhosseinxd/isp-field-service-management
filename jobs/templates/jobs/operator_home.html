@@ -26,6 +26,9 @@
       کار شماره {{ job.pk }} — {{ job.get_workflow_display }}
       <span class="badge">{{ job.get_status_display }}</span>
       {% if job.customer %}<div>{{ job.customer.full_name }}</div>{% endif %}
+      {% if job.submitted_at %}
+        <div class="hint" title="{{ job.submitted_at|jalali }}">ارسال: {{ job.submitted_at|time_ago }}</div>
+      {% endif %}
       {% if job.next_workflow %}
         <form method="post" action="{% url 'job_continue' job.pk %}"
               onsubmit="this.querySelector('button').disabled = true;">

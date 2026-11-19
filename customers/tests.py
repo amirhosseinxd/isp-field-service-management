@@ -119,6 +119,18 @@ class ExcelImportTests(TestCase):
         self.assertEqual(len(summary['errors']), 1)
         self.assertEqual(summary['errors'][0][0], 3)  # the error names row 3
 
+    def test_city_matches_whatever_the_spacing_or_letter_form(self):
+        expected = City.objects.get(name__startswith='مهدی')
+        for spelling in ('مهدی شهر', 'مهدی‌شهر', 'مهدیشهر', ' مهدی شهر ', 'مهدي شهر'):
+            with self.subTest(spelling=spelling):
+                data = parse_row(excel_row(city=spelling, center='مهدی‌شهر-OAC.02'))
+                self.assertEqual(data['city'], expected)
+
+        self.assertEqual(
+            parse_row(excel_row(city='كلاته خيج'))['city'],     # Arabic letter forms
+            City.objects.get(name='کلاته خیج'),
+        )
+
 
 
 

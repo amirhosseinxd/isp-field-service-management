@@ -54,9 +54,10 @@ def operator_home(request):
     mine = Job.objects.filter(assigned_operator=request.user).select_related('customer')
     return render(request, 'jobs/operator_home.html', {
         'active_jobs': mine.exclude(status__in=CLOSED),
-        'submitted_jobs': mine.filter(status__in=CLOSED)[:10],
+        'submitted_jobs': mine.filter(status__in=CLOSED).order_by(
+            F('submitted_at').desc(nulls_last=True),
+        )[:10],
     })
-
 
 @role_required(User.Role.OPERATOR)
 def job_start(request, pk):

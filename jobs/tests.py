@@ -347,6 +347,14 @@ class TechnicianPanelTests(JobTestBase):
 
 
 
+    def test_submitted_jobs_show_when_they_were_submitted(self):
+        job = self.make_job('installation', 'fusion', status=Job.Status.SUBMITTED)
+        Job.objects.filter(pk=job.pk).update(submitted_at=timezone.now() - timedelta(minutes=5))
+        self.client.login(username='t_tech', password=PASSWORD)
+        self.assertContains(self.client.get(reverse('operator_home')), 'ارسال: ۵ دقیقه پیش')
+
+
+
 
 
 
@@ -543,8 +551,8 @@ class ContinueWorkflowTests(JobTestBase):
     def test_which_workflow_follows_which(self):
         self.assertEqual(self.submitted('ftth_inquiry').next_workflow(), 'drop_cable')
         self.assertEqual(self.submitted('drop_cable').next_workflow(), 'fusion')
-        self.assertEqual(self.submitted('fusion').next_workflow(),'service_delivery')
-        self.assertIsNone(self.submitted('service_delivery').next_workflow())
+        self.assertEqual(self.submitted('fusion').next_workflow(), 'service_delivery')
+        self.assertIsNone(self.submitted('service_delivery').next_workflow())   # the end of the chain
 
     def test_nothing_follows_an_unfinished_job_or_a_job_without_a_customer(self):
         self.assertIsNone(self.make_job('installation', 'ftth_inquiry').next_workflow())
@@ -596,6 +604,12 @@ class ContinueWorkflowTests(JobTestBase):
         self.client.login(username='t_tech', password=PASSWORD)
         self.assertContains(self.client.get(reverse('operator_home')), 'ادامه: دراپ کشی')
 
+    def test_continuing_after_fusion_starts_service_delivery(self):
+        job = self.submitted('fusion')
+        self.client.login(username='t_tech', password=PASSWORD)
+        self.client.post(reverse('job_continue', args=[job.pk]))
+        self.assertTrue(Job.objects.filter(customer=self.customer, workflow='service_delivery').exists())
+
 
 class LastStepButtonTests(JobTestBase):
     def test_button_appears_on_earlier_steps_only_and_the_progress_bar_links_back(self):
@@ -614,3 +628,19 @@ class LastStepButtonTests(JobTestBase):
 
         here = self.client.get(current)
         self.assertNotContains(here, 'آخرین مرحله')
+
+
+
+    def test_previous_step_button_goes_one_step_back(self):
+        job = self.make_job(
+            'installation', 'ftth_inquiry', ftth_outcome='needs_materials',
+            latitude=Decimal('35.1'), longitude=Decimal('51.1'),
+        )
+        location = reverse('job_location', args=[job.pk])
+        first = reverse('job_step', args=[job.pk, 0])
+        second = reverse('job_step', args=[job.pk, 1])
+        self.client.login(username='t_tech', password=PASSWORD)
+
+        self.assertNotContains(self.client.get(location), 'مرحله قبل')   # nothing comes before the location
+        self.assertContains(self.client.get(first), f'href="{location}">مرحله قبل')
+        self.assertContains(self.client.get(second), f'href="{first}">مرحله قبل')

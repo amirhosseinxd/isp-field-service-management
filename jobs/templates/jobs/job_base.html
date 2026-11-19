@@ -3,9 +3,13 @@
 {% block main_class %}job-page{% endblock %}
 {% block content %}
 {% last_step_url job as last_url %}
+{% previous_step_url job request.path as previous_url %}
 <div class="job-wrap">
   <div class="job-nav">
     <a class="back-link" href="{% url 'operator_home' %}">→ بازگشت به لیست کارها</a>
+    {% if previous_url %}
+      <a class="back-link" href="{{ previous_url }}">مرحله قبل</a>
+    {% endif %}
     {% if last_url != request.path %}
       <a class="back-link" href="{{ last_url }}">رفتن به آخرین مرحله ←</a>
     {% endif %}
