@@ -19,7 +19,12 @@
     {{ form.description.errors }}
     <label>توضیحات کار انجام‌شده</label>
     {{ form.description }}
-    <button type="submit" class="btn" {% if missing %}disabled{% endif %}>ارسال نهایی</button>
+    <div class="step-actions">
+      {% if previous_url %}
+        <a class="btn secondary" href="{{ previous_url }}">مرحله قبل</a>
+      {% endif %}
+      <button type="submit" class="btn" {% if missing %}disabled{% endif %}>ارسال نهایی</button>
+    </div>
   </form>
 </div>
 {% endblock %}

@@ -15,7 +15,12 @@
     {% else %}
       {{ form.answer }}
     {% endif %}
-    <button type="submit" class="btn">ادامه</button>
+    <div class="step-actions">
+      {% if previous_url %}
+        <a class="btn secondary" href="{{ previous_url }}">مرحله قبل</a>
+      {% endif %}
+      <button type="submit" class="btn">ادامه</button>
+    </div>
   </form>
 </div>
 {% endblock %}

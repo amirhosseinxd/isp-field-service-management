@@ -9,5 +9,4 @@ urlpatterns = [
     path('notifications/<int:pk>/open/', views.open_notification, name='notification_open'),
     path('notifications/push/subscribe/', views.push_subscribe, name='push_subscribe'),
     path('notifications/push/unsubscribe/', views.push_unsubscribe, name='push_unsubscribe'),
-    path('sw.js', views.service_worker, name='service_worker'),
 ]

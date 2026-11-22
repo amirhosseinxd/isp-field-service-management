@@ -8,4 +8,5 @@ urlpatterns = [
     path('', include('customers.urls')),
     path('', include('audit.urls')),
     path('', include('notifications.urls')),
+    path('', include('pwa.urls')),
 ]

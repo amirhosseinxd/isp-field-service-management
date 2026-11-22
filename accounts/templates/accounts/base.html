@@ -15,6 +15,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}FSM{% endblock %}</title>
   <meta name="theme-color" content="#14305a">
+  <link rel="manifest" href="{% url 'pwa_manifest' %}">
+  <link rel="icon" type="image/png" href="{% url 'pwa_icon' 192 %}">
+  <link rel="apple-touch-icon" href="{% url 'pwa_icon' 180 %}">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="QGS">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🛠️%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css">
   <style>
@@ -312,20 +319,30 @@
                  background: var(--card); border: 1px solid var(--border-strong); border-radius: 999px;
                  text-decoration: none; transition: background .15s, border-color .15s; }
     .back-link:hover { background: var(--primary-soft); border-color: var(--primary-soft-border); text-decoration: none; }
-    .job-layout { display: grid; gap: 12px; }
-    .job-info { padding: 12px 14px; font-size: 14px; background: var(--card); border: 1px solid var(--line);
-                border-radius: var(--radius); box-shadow: var(--shadow); }
-    .job-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+    .job-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+    .job-main, .job-info { min-width: 0; }
+    .job-info { padding: 12px 14px; font-size: 14px; overflow-wrap: anywhere; background: var(--card);
+                border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+    .job-info-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }
     .job-info .label { display: block; margin: 0; font-size: 12px; font-weight: 400; color: var(--muted); }
     .tel-link { display: inline-block; padding: 8px 12px; font-weight: 600; color: var(--link);
                 background: var(--primary-soft); border-radius: var(--radius-sm); text-decoration: none; }
     @media (min-width: 900px) {
       .job-wrap { max-width: 752px; }
-      .job-layout { grid-template-columns: 480px 260px; align-items: start; }
+      .job-layout { grid-template-columns: minmax(0, 480px) 260px; align-items: start; }
       .job-main { grid-column: 1; grid-row: 1; }
       .job-info { grid-column: 2; grid-row: 1; position: sticky; top: calc(var(--header-h) + 12px); }
-      .job-info-grid { grid-template-columns: 1fr; }
+      .job-info-grid { grid-template-columns: minmax(0, 1fr); }
     }
+    
+    .step-actions { display: flex; gap: 8px; margin-top: 12px; }
+    .step-actions .btn { flex: 1 1 0; width: auto; margin-top: 0;
+                         display: flex; align-items: center; justify-content: center; }
+    .btn.secondary { color: var(--ghost-text); background: var(--card);
+                     border: 1px solid var(--border-strong); }
+    .btn.secondary:hover { background: var(--primary-soft); border-color: var(--primary-soft-border);
+                           color: var(--ghost-text); }
+
 
     /* ===== Materials list ===== */
     .mat-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
@@ -473,6 +490,22 @@
     /* ===== Whole-row click in selection mode ===== */
     .select-mode tbody tr { cursor: pointer; }
     .select-mode tbody tr td { user-select: none; }
+
+    /* ===== Install banner (PWA) ===== */
+    .install-banner { position: fixed; inset-inline: 12px; bottom: 12px; z-index: 60; display: flex; align-items: center;
+                      gap: 10px; padding: 10px 12px; background: var(--card); color: var(--text);
+                      border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 6px 24px rgba(0,0,0,.25); }
+    .install-banner[hidden] { display: none; }
+    .install-banner img { width: 40px; height: 40px; border-radius: 10px; flex: none; }
+    .install-banner .install-text { flex: 1; font-size: 13px; line-height: 1.6; }
+    .install-banner .install-text strong { display: block; font-size: 14px; }
+    .install-action { display: inline-block; padding: 7px 14px; font-size: 13px; color: #fff; background: #14305a;
+                      border: 0; border-radius: 8px; text-decoration: none; cursor: pointer; white-space: nowrap; font-family: inherit; }
+    .install-action:hover { background: #1f4580; color: #fff; text-decoration: none; }
+    .install-action[hidden] { display: none; }
+    .install-banner .install-close { padding: 2px 9px; font-size: 20px; line-height: 1.2; color: var(--muted);
+                                     background: transparent; border: 0; border-radius: 8px; cursor: pointer; }
+    .install-banner .install-close:hover { background: rgba(127,127,127,.18); }
   </style>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/persian-datepicker@1.2.0/dist/css/persian-datepicker.min.css">
 </head>
@@ -565,5 +598,14 @@ document.addEventListener('DOMContentLoaded', function () {
 })();
 </script>
 {% block scripts %}{% endblock %}
+  <script>
+    // Needed for installing the app. The same worker also handles push, so this is safe to run on every page.
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register("{% url 'service_worker' %}", { scope: '/' }).catch(function () {});
+      });
+    }
+  </script>
+  {% include 'pwa/_install.html' %}
 </body>
 </html>

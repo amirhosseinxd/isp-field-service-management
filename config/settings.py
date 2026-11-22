@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'customers',
     'audit',
     'notifications',
+    'pwa',
 ]
 
 MIDDLEWARE = [
@@ -153,3 +154,8 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Browser push (Web Push). The key file is created by `python manage.py generate_vapid_keys`
 VAPID_PRIVATE_KEY_FILE = BASE_DIR / 'vapid_private.pem'
 VAPID_ADMIN_SUBJECT = 'mailto:you@example.com'   # put a real contact address here
+
+
+# Change this value whenever you want every phone to throw away its saved static files
+# (for example after replacing the background image). Any text works: '2', '2026-12-01', ...
+PWA_VERSION = '1'

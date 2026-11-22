@@ -40,12 +40,17 @@
     </div>
   {% endif %}
 
-  {% if complete %}
-    <a class="btn" href="{{ next_url }}">مرحله بعد</a>
-  {% else %}
-    <span class="btn disabled">
-      {% if step.kind == 'video' %}حداقل {{ step.minimum }} ویدیو{% else %}حداقل {{ step.minimum }} عکس{% endif %} لازم است
-    </span>
-  {% endif %}
+  <div class="step-actions">
+    {% if previous_url %}
+      <a class="btn secondary" href="{{ previous_url }}">مرحله قبل</a>
+    {% endif %}
+    {% if complete %}
+      <a class="btn" href="{{ next_url }}">مرحله بعد</a>
+    {% else %}
+      <span class="btn disabled">
+        {% if step.kind == 'video' %}حداقل {{ step.minimum }} ویدیو{% else %}حداقل {{ step.minimum }} عکس{% endif %} لازم است
+      </span>
+    {% endif %}
+  </div>
 </div>
 {% endblock %}

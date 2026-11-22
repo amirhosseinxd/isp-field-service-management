@@ -105,11 +105,3 @@ def push_unsubscribe(request):
         return JsonResponse({'ok': False}, status=400)
     PushSubscription.objects.filter(user=request.user, endpoint=endpoint).delete()
     return JsonResponse({'ok': True})
-
-
-def service_worker(request):
-    """The browser's background script. It must be served from the site root to cover every page."""
-    response = render(request, 'notifications/sw.js', content_type='application/javascript')
-    response['Cache-Control'] = 'no-cache'
-    response['Service-Worker-Allowed'] = '/'
-    return response

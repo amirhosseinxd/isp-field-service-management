@@ -33,13 +33,14 @@
         </div>
       {% endfor %}
     </div>
-
-    <button type="submit" class="btn">ثبت</button>
+  <div class="step-actions">
+      {% if previous_url %}
+        <a class="btn secondary" href="{{ previous_url }}">مرحله قبل</a>
+      {% endif %}
+      <button type="submit" class="btn">ثبت</button>
+    </div>
   </form>
-
-  {% if complete %}
-    <a class="btn" href="{{ next_url }}">مرحله بعد</a>
-  {% endif %}
+</div>
 </div>
 
 <script>

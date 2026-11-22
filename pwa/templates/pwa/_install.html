@@ -1,0 +1,67 @@
+<div class="install-banner" id="install-banner" hidden>
+  <img src="{% url 'pwa_icon' 192 %}" alt="" width="40" height="40">
+  <div class="install-text">
+    <strong>نصب برنامه QGS</strong>
+    روی صفحه اصلی گوشی اضافه شود تا مثل یک برنامه باز شود.
+  </div>
+  <button type="button" class="install-action" id="install-btn" hidden>نصب</button>
+  <a class="install-action" id="install-help" href="{% url 'pwa_install' %}" hidden>نحوه نصب</a>
+  <button type="button" class="install-close" id="install-close" aria-label="بستن">×</button>
+</div>
+
+<script>
+  (function () {
+    var banner = document.getElementById('install-banner');
+    var installBtn = document.getElementById('install-btn');
+    var helpLink = document.getElementById('install-help');
+    var closeBtn = document.getElementById('install-close');
+    var KEY = 'qgs.install.dismissed';
+    var deferredPrompt = null;
+
+    function standalone() {
+      return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    }
+    function touchDevice() { return window.matchMedia('(pointer: coarse)').matches; }
+    function ios() {
+      return /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);   // iPadOS pretends to be a Mac
+    }
+    function dismissedRecently() {
+      try { return Date.now() - parseInt(localStorage.getItem(KEY) || '0', 10) < 14 * 24 * 3600 * 1000; }
+      catch (e) { return false; }
+    }
+    function hide() { banner.hidden = true; }
+
+    // Stay silent if: already installed, on a computer, closed recently, or already on the help page.
+    if (standalone() || !touchDevice() || dismissedRecently() ||
+        location.pathname === helpLink.getAttribute('href')) { return; }
+
+    // Android Chrome: the browser tells us the app is installable. We keep that event and
+    // use it when the user taps our button (the browser's native install dialog then appears).
+    window.addEventListener('beforeinstallprompt', function (event) {
+      event.preventDefault();
+      deferredPrompt = event;
+      helpLink.hidden = true;
+      installBtn.hidden = false;
+      banner.hidden = false;
+    });
+    window.addEventListener('appinstalled', hide);
+
+    installBtn.addEventListener('click', function () {
+      if (!deferredPrompt) { return; }
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then(function () { deferredPrompt = null; hide(); });
+    });
+
+    closeBtn.addEventListener('click', function () {
+      try { localStorage.setItem(KEY, String(Date.now())); } catch (e) {}
+      hide();
+    });
+
+    // iPhone/iPad never fire that event: show the link to the Persian Share-menu instructions.
+    if (ios()) {
+      helpLink.hidden = false;
+      banner.hidden = false;
+    }
+  })();
+</script>
