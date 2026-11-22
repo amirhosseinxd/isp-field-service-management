@@ -16,6 +16,7 @@ COLUMNS = {
     'center': 'Q',
     'registered_at': 'AA',
     'status': 'AD',
+    'last_modified_at': 'AE',
 }
 
 CENTER_NUMBER_RE = re.compile(r'OAC\.(\d{1,2})')
@@ -78,22 +79,31 @@ def _clean_center_number(value):
         raise RowError(f'فرمت مرکز قابل تشخیص نیست: {text!r}')
     return match.group(1).zfill(2)
 
-
-def _clean_registered_at(value):
-    text = str(value).strip() if value is not None else ''
+def _parse_jalali_datetime(text, label):
     match = JALALI_RE.match(text)
     if not match:
-        raise RowError(f'تاریخ ثبت‌نام قابل خواندن نیست (فرمت مورد انتظار: HH:MM:SS-YYYY/MM/DD): {text!r}')
+        raise RowError(f'{label} قابل خواندن نیست (فرمت مورد انتظار: HH:MM:SS-YYYY/MM/DD): {text!r}')
 
     hour, minute, second, jyear, jmonth, jday = (int(g) for g in match.groups())
     try:
         gregorian_date = jdatetime.date(jyear, jmonth, jday).togregorian()
     except ValueError:
-        raise RowError(f'تاریخ شمسی نامعتبر است: {text!r}')
+        raise RowError(f'{label}: تاریخ شمسی نامعتبر است: {text!r}')
 
-    dt = datetime.combine(gregorian_date, time(hour, minute, second))
-    return timezone.make_aware(dt)
+    return timezone.make_aware(datetime.combine(gregorian_date, time(hour, minute, second)))
 
+
+def _clean_registered_at(value):
+    text = str(value).strip() if value is not None else ''
+    return _parse_jalali_datetime(text, 'تاریخ ثبت‌نام')
+
+
+def _clean_last_modified(value):
+    """Optional: an empty cell means 'not known'. Anything else must be a valid date."""
+    text = str(value).strip() if value is not None else ''
+    if not text:
+        return None
+    return _parse_jalali_datetime(text, 'تاریخ آخرین تغییر')
 
 def parse_row(values, cities=None):
     """values: a dict with the keys in COLUMNS, already read from one Excel row."""
@@ -105,6 +115,7 @@ def parse_row(values, cities=None):
     city = _clean_city(values['city'], cities)
     center_number = _clean_center_number(values['center'])
     registered_at = _clean_registered_at(values['registered_at'])
+    last_modified_at = _clean_last_modified(values['last_modified_at'])
     status_label = str(values['status']).strip() if values['status'] not in (None, '') else ''
 
     if not full_name:
@@ -118,8 +129,18 @@ def parse_row(values, cities=None):
         'city': city,
         'center_number': center_number,
         'registered_at': registered_at,
+        'last_modified_at': last_modified_at,
         'status_label': status_label,
     }
+
+
+def newest(stored, imported):
+    """The most recent of two optional times (None means 'unknown')."""
+    if stored is None:
+        return imported
+    if imported is None:
+        return stored
+    return max(stored, imported)
 
 
 def import_rows(rows):
@@ -140,12 +161,20 @@ def import_rows(rows):
             continue
 
         subscription_id = data.pop('subscription_id')
-        _, was_created = Customer.objects.update_or_create(
-            subscription_id=subscription_id, defaults=data,
-        )
-        if was_created:
+        imported_modified = data.pop('last_modified_at')
+
+        customer = Customer.objects.filter(subscription_id=subscription_id).first()
+        if customer is None:
+            Customer.objects.create(
+                subscription_id=subscription_id, last_modified_at=imported_modified, **data,
+            )
             created += 1
         else:
+            for field, value in data.items():
+                setattr(customer, field, value)
+            # Keep the most recent time. A blank cell never erases a stored one.
+            customer.last_modified_at = newest(customer.last_modified_at, imported_modified)
+            customer.save()
             updated += 1
 
     return {'created': created, 'updated': updated, 'errors': errors}

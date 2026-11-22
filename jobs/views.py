@@ -33,7 +33,9 @@ from .forms import (
 from audit.models import AuditEntry
 from audit.services import log as audit_log
 
+from accounts.sorting import header_links, order_by_field, read_sort
 
+JOB_SORTS = {'submitted': 'submitted_at'}
 
 CLOSED = (Job.Status.SUBMITTED, Job.Status.REVIEWED)
 
@@ -400,15 +402,20 @@ def job_video(request, pk):
     return response
 
 
-
 @role_required(User.Role.ADMIN)
 def support_dashboard(request):
-    # With no filters in the URL, show submitted jobs (the review queue)
-    form = JobFilterForm(request.GET or {'status': Job.Status.SUBMITTED})
+    sort_key, sort_dir = read_sort(request, JOB_SORTS, 'submitted')
+
+    # Sorting and paging aren't filters. With no real filter in the address, show the review queue.
+    filter_params = {
+        key: value for key, value in request.GET.items() if key not in ('sort', 'dir', 'page')
+    }
+    form = JobFilterForm(filter_params or {'status': Job.Status.SUBMITTED})
+
     jobs = (
         Job.objects.select_related('assigned_operator', 'customer')
         .annotate(photo_total=Count('evidence'))
-        .order_by(F('submitted_at').desc(nulls_last=True), '-created_at')
+        .order_by(order_by_field(JOB_SORTS[sort_key], sort_dir), '-created_at')
     )
     if form.is_valid():
         cd = form.cleaned_data
@@ -435,9 +442,11 @@ def support_dashboard(request):
         'form': form,
         'page': page,
         'qs': qs,
+        'sort_key': sort_key,
+        'sort_dir': sort_dir,
+        'sorting': header_links(request, JOB_SORTS, sort_key, sort_dir),
         'pending_count': Job.objects.filter(status=Job.Status.SUBMITTED).count(),
     })
-
 
 @role_required(User.Role.ADMIN)
 def support_job_detail(request, pk):

@@ -3,7 +3,11 @@
 {% block title %}{{ customer.full_name }}{% endblock %}
 {% block main_class %}wide{% endblock %}
 {% block content %}
-<p><a href="{% url 'customer_list' %}">← بازگشت به فهرست مشتریان</a></p>
+<p>
+  <a href="{% url 'customer_list' %}" class="icon-btn compact ico-slate">
+    <i data-lucide="arrow-right"></i><span>بازگشت به فهرست مشتریان</span>
+  </a>
+</p>
 
 <div class="card" style="margin-bottom:16px">
   <h2>{{ customer.full_name }}
@@ -21,15 +25,23 @@
 </div>
 
 <div class="card" style="margin-bottom:16px">
-  <h3>کارهای این مشتری  <p><a href="{% url 'job_create' %}?customer={{ customer.pk }}" class="btn" style="display:inline-block;width:auto;padding:8px 14px;">+ ثبت کار برای این مشتری</a></p></h3>
+  <h3>
+  کارهای این مشتری
+  <a href="{% url 'job_create' %}?customer={{ customer.pk }}"
+     class="icon-btn ico-green"
+     style="margin-right: 10px;">
+    <i data-lucide="clipboard-plus"></i>
+    <span>ثبت کار برای این مشتری</span>
+  </a>
+</h3>
   {% for job in jobs %}
     <p>
       <a href="{% url 'support_job_detail' job.pk %}">کار {{ job.pk }}</a>
       — {{ job.get_job_type_display }} / {{ job.get_workflow_display }}
-      <span class="badge">{{ job.get_status_display }}</span>
+      <span class="badge status-{{ job.status }}">{{ job.get_status_display }}</span>
     </p>
   {% empty %}
-    <p class="hint">هنوز کاری برای این مشتری ثبت نشده است.</p>
+   {% include 'accounts/_empty.html' with icon='clipboard' title='هنوز کاری ثبت نشده' text='با دکمه «ثبت کار برای این مشتری» می‌توانید کار جدید ایجاد کنید.' %}
   {% endfor %}
 </div>
 
@@ -53,9 +65,10 @@
         </figcaption>
       </figure>
     {% empty %}
-      <p class="hint">مدیایی برای این مشتری ثبت نشده است.</p>
+      {% include 'accounts/_empty.html' with icon='image' title='مدیایی ثبت نشده' text='عکس‌ها و ویدیوهای تکنسین‌ها اینجا نمایش داده می‌شود.' %}
     {% endfor %}
   </div>
   {% include 'jobs/_pagination.html' %}
 </div>
 {% endblock %}
+{% block scripts %}{% include 'accounts/_lucide.html' %}{% endblock %}

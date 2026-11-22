@@ -3,19 +3,31 @@
 {% block title %}داشبورد پشتیبانی{% endblock %}
 {% block main_class %}wide{% endblock %}
 {% block content %}
-<h2>کارها <span class="badge">{{ pending_count }} در انتظار بررسی</span>
-  <a href="{% url 'job_create' %}" class="btn" style="display:inline-block;width:auto;padding:8px 14px;">+ کار جدید</a>  <a href="{% url 'technician_report' %}" class="btn" style="display:inline-block;width:auto;padding:8px 14px;">
-    گزارش عملکرد تکنسین‌ها
-  </a>
-</h2>
+<div class="page-head">
+  <h2>کارها <span class="badge badge-warn">{{ pending_count }} در انتظار بررسی</span></h2>
+  <div class="page-actions">
+    <a href="{% url 'job_create' %}" class="icon-btn ico-green">
+      <i data-lucide="clipboard-plus"></i><span>کار جدید</span>
+    </a>
+    <a href="{% url 'technician_report' %}" class="icon-btn ico-slate">
+      <i data-lucide="chart-no-axes-combined"></i><span>گزارش عملکرد تکنسین‌ها</span>
+    </a>
+  </div>
+</div>
 
 <form method="get" class="card filters">
+  <input type="hidden" name="sort" value="{{ sort_key }}">
+  <input type="hidden" name="dir" value="{{ sort_dir }}">
   {% for field in form %}
     <div>{{ field.label_tag }} {{ field }} {{ field.errors }}</div>
   {% endfor %}
   <div class="filter-actions">
-    <button type="submit">اعمال فیلتر</button>
-    <a href="{% url 'support_dashboard' %}?status=">نمایش همه</a>
+    <button type="submit" class="icon-btn compact ico-blue">
+      <i data-lucide="filter"></i><span>اعمال فیلتر</span>
+    </button>
+    <a href="{% url 'support_dashboard' %}?status=" class="icon-btn compact ico-slate">
+      <i data-lucide="list"></i><span>نمایش همه</span>
+    </a>
   </div>
 </form>
 
@@ -23,8 +35,18 @@
   <table>
     <thead>
       <tr>
-        <th>شماره</th><th>نوع</th><th>مشترک</th><th>تکنسین</th><th>وضعیت</th>
-        <th>زمان ارسال</th><th>عکس‌ها</th><th></th>
+        <th>شماره</th>
+        <th>نوع</th>
+        <th>مشترک</th>
+        <th>تکنسین</th>
+        <th>وضعیت</th>
+        <th>
+          <a class="sort-link{% if sorting.submitted.active %} is-active{% endif %}"
+             href="{{ sorting.submitted.url }}">زمان ارسال
+            {% include 'accounts/_sort_arrow.html' with direction=sorting.submitted.arrow %}</a>
+        </th>
+        <th>مدیا</th>
+        <th></th>
       </tr>
     </thead>
     <tbody>
@@ -32,7 +54,6 @@
         <tr>
           <td>{{ job.pk }}</td>
           <td>{{ job.get_job_type_display }} — {{ job.get_workflow_display }}</td>
-          
           <td>
             {% if job.customer %}
               <a href="{% url 'customer_detail' job.customer.pk %}">{{ job.customer.full_name }}</a>
@@ -40,15 +61,20 @@
               <span class="hint">—</span>
             {% endif %}
           </td>
-
           <td>{{ job.assigned_operator.get_full_name|default:job.assigned_operator.username }}</td>
-          <td><span class="badge">{{ job.get_status_display }}</span></td>
+          <td><span class="badge status-{{ job.status }}">{{ job.get_status_display }}</span></td>
           <td>{{ job.submitted_at|jalali|default:"—" }}</td>
           <td>{{ job.photo_total }}</td>
-          <td><a href="{% url 'support_job_detail' job.pk %}">مشاهده</a></td>
+          <td>
+            <a class="view-link" href="{% url 'support_job_detail' job.pk %}">
+              <i data-lucide="eye"></i><span>مشاهده</span>
+            </a>
+          </td>
         </tr>
       {% empty %}
-        <tr><td colspan="8">موردی پیدا نشد.</td></tr>
+        <tr><td colspan="8" class="empty-cell">
+          {% include 'accounts/_empty.html' with icon='search' title='موردی پیدا نشد' text='فیلترها را تغییر دهید یا پاک کنید.' %}
+        </td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -56,3 +82,4 @@
 
 {% include 'jobs/_pagination.html' %}
 {% endblock %}
+{% block scripts %}{% include 'accounts/_lucide.html' %}{% endblock %}

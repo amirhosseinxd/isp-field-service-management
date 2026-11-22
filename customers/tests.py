@@ -74,6 +74,7 @@ def excel_row(**overrides):
         'city': 'میامی',
         'center': 'میامی-OAC.01',
         'registered_at': '12:20:09-1405/08/18',
+        'last_modified_at': '13:13:25-1405/08/20',
         'status': 'در انتظار بررسی',
     }
     values.update(overrides)
@@ -279,3 +280,100 @@ class MaterialFilterAndSelectionTests(TestCase):
     def test_technician_cannot_export(self):
         self.client.login(username='f_tech', password='pw-12345-test')
         self.assertEqual(self.client.post(reverse('customer_export'), {'ids': '1'}).status_code, 403)
+
+
+
+
+class LastModifiedImportTests(TestCase):
+    NEWER = '09:00:00-1405/09/01'
+    OLDER = '09:00:00-1405/01/01'
+
+    def expected(self, text):
+        return parse_row(excel_row(last_modified_at=text))['last_modified_at']
+
+    def stored(self):
+        return Customer.objects.get(subscription_id='0016473825').last_modified_at
+
+    def test_the_value_is_read_from_column_AE(self):
+        from .imports import COLUMNS
+        self.assertEqual(COLUMNS['last_modified_at'], 'AE')
+
+    def test_a_new_customer_gets_the_imported_time(self):
+        import_rows([(2, excel_row())])
+        self.assertEqual(self.stored(), self.expected('13:13:25-1405/08/20'))
+
+    def test_a_customer_without_a_stored_time_gets_one(self):
+        import_rows([(2, excel_row(last_modified_at=None))])
+        self.assertIsNone(self.stored())
+        import_rows([(2, excel_row())])
+        self.assertEqual(self.stored(), self.expected('13:13:25-1405/08/20'))
+
+    def test_the_most_recent_time_is_kept(self):
+        import_rows([(2, excel_row())])                                   # 1405/08/20
+        import_rows([(2, excel_row(last_modified_at=self.OLDER))])        # older: ignored
+        self.assertEqual(self.stored(), self.expected('13:13:25-1405/08/20'))
+        import_rows([(2, excel_row(last_modified_at=self.NEWER))])        # newer: wins
+        self.assertEqual(self.stored(), self.expected(self.NEWER))
+
+    def test_a_blank_cell_never_erases_a_stored_time(self):
+        import_rows([(2, excel_row())])
+        import_rows([(2, excel_row(last_modified_at=None))])
+        self.assertEqual(self.stored(), self.expected('13:13:25-1405/08/20'))
+
+    def test_an_invalid_value_rejects_only_that_row(self):
+        summary = import_rows([(2, excel_row(last_modified_at='not a date'))])
+        self.assertEqual((summary['created'], len(summary['errors'])), (0, 1))
+
+
+class CustomerSortTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(username='s_admin', password='pw-12345-test', role=User.Role.ADMIN)
+        self.tech = User.objects.create_user(username='s_tech', password='pw-12345-test', role=User.Role.OPERATOR)
+        now = timezone.now()
+        city = City.objects.get(name='سمنان')
+
+        def make(number, name, registered_days_ago, modified_days_ago):
+            return Customer.objects.create(
+                subscription_id=number, full_name=name, mobile='09120000000', address='a',
+                city=city, center_number='01',
+                registered_at=now - timedelta(days=registered_days_ago),
+                last_modified_at=(
+                    now - timedelta(days=modified_days_ago) if modified_days_ago is not None else None
+                ),
+            )
+
+        self.a = make('0000000011', 'الف', 30, 1)       # registered longest ago, changed most recently
+        self.b = make('0000000012', 'ب', 20, 10)
+        self.c = make('0000000013', 'ج', 10, None)      # never changed
+        self.client.login(username='s_admin', password='pw-12345-test')
+
+    def names(self, **params):
+        response = self.client.get(reverse('customer_list'), params)
+        return [customer.full_name for customer in response.context['page']]
+
+    def test_registration_date_newest_first_by_default_and_reversible(self):
+        self.assertEqual(self.names(), ['ج', 'ب', 'الف'])
+        self.assertEqual(self.names(sort='registered', dir='asc'), ['الف', 'ب', 'ج'])
+
+    def test_last_change_sorts_both_ways_with_empty_ones_last(self):
+        self.assertEqual(self.names(sort='modified'), ['الف', 'ب', 'ج'])
+        self.assertEqual(self.names(sort='modified', dir='asc'), ['ب', 'الف', 'ج'])
+
+    def test_job_activity_counts_as_a_change(self):
+        Job.objects.create(
+            job_type='installation', workflow='fusion', assigned_operator=self.tech,
+            created_by=self.admin, customer=self.b,
+        )
+        self.assertEqual(self.names(sort='modified')[0], 'ب')   # a job just now beats a 1-day-old value
+
+    def test_header_links_flip_the_order(self):
+        page = self.client.get(reverse('customer_list'))
+        self.assertContains(page, 'href="?sort=registered&amp;dir=asc"')    # default is newest first
+        self.assertContains(page, 'href="?sort=modified&amp;dir=desc"')
+        flipped = self.client.get(reverse('customer_list'), {'sort': 'registered', 'dir': 'asc'})
+        self.assertContains(flipped, 'href="?sort=registered&amp;dir=desc"')
+
+    def test_buttons_use_the_icons(self):
+        page = self.client.get(reverse('customer_list')).content.decode()
+        for icon in ('user-round-plus', 'file-up', 'file-down', 'eye'):
+            self.assertIn(f'data-lucide="{icon}"', page)

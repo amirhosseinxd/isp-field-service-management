@@ -1,6 +1,8 @@
 <script>
 (function () {
   var root = document.getElementById('bell');
+  if (!root || root.dataset.pushReady) { return; }
+  root.dataset.pushReady = '1';
   var box = document.getElementById('push-box');
   var note = document.getElementById('push-note');
   var enableBtn = document.getElementById('push-enable');

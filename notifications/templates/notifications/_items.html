@@ -27,5 +27,5 @@
     {% endif %}
   </li>
 {% empty %}
-  <li class="notif-empty">اعلانی وجود ندارد.</li>
+  <li class="notif-empty">{% include 'accounts/_empty.html' with icon='bell' title='اعلانی وجود ندارد' %}</li>
 {% endfor %}

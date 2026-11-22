@@ -32,7 +32,8 @@ class Customer(models.Model):
     city = models.ForeignKey(City, on_delete=models.PROTECT, related_name='customers')
     center_number = models.CharField(max_length=2, validators=[center_number_validator])
     registered_at = models.DateTimeField()
-
+    # From the "last modified" column of the Excel import (column AE).
+    last_modified_at = models.DateTimeField(null=True, blank=True) 
     # Shown only until this customer has a job of their own (see current_status_display)
     status_label = models.CharField(max_length=255, blank=True)
 

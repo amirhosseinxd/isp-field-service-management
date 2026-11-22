@@ -2,7 +2,11 @@
 {% block title %}کار جدید{% endblock %}
 {% block main_class %}wide{% endblock %}
 {% block content %}
-<p><a href="{% url 'support_dashboard' %}">← بازگشت به فهرست</a></p>
+<p>
+  <a href="{% url 'support_dashboard' %}" class="icon-btn compact ico-slate">
+    <i data-lucide="arrow-right"></i><span>بازگشت به فهرست</span>
+  </a>
+</p>
 
 <div class="card" style="max-width:640px">
   <h2>ثبت کار جدید</h2>
@@ -112,3 +116,4 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 {% endblock %}
+{% block scripts %}{% include 'accounts/_lucide.html' %}{% endblock %}

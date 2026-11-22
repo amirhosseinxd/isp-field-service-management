@@ -32,6 +32,8 @@
   <script>
   (function () {
     var root = document.getElementById('bell');
+    if (!root || root.dataset.ready) { return; }  
+    root.dataset.ready = '1';
     var btn = root.querySelector('.bell-btn');
     var menu = root.querySelector('.bell-menu');
     var badge = root.querySelector('.bell-badge');

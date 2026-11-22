@@ -10,8 +10,12 @@
     <div>{{ field.label_tag }} {{ field }} {{ field.errors }}</div>
   {% endfor %}
   <div class="filter-actions">
-    <button type="submit">اعمال فیلتر</button>
-    <a href="{% url 'audit_list' %}">پاک کردن</a>
+    <button type="submit" class="icon-btn compact ico-blue">
+      <i data-lucide="filter"></i><span>اعمال فیلتر</span>
+    </button>
+    <a href="{% url 'audit_list' %}" class="icon-btn compact ico-slate">
+      <i data-lucide="eraser"></i><span>حذف فیلتر ها</span>
+    </a>
   </div>
 </form>
 
@@ -39,10 +43,13 @@
           <td class="ltr">{{ e.ip_address|default:"—" }}</td>
         </tr>
       {% empty %}
-        <tr><td colspan="6">موردی پیدا نشد.</td></tr>
+        <tr><td colspan="8" class="empty-cell">
+        {% include 'accounts/_empty.html' with icon='search' title='موردی پیدا نشد' text='فیلترها را تغییر دهید یا پاک کنید.' %}
+        </td></tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
 {% include 'jobs/_pagination.html' %}
 {% endblock %}
+{% block scripts %}{% include 'accounts/_lucide.html' %}{% endblock %}

@@ -3,10 +3,14 @@
 {% block title %}کار شماره {{ job.pk }}{% endblock %}
 {% block main_class %}wide{% endblock %}
 {% block content %}
-<p><a href="{% url 'support_dashboard' %}">← بازگشت به فهرست</a></p>
+<p>
+  <a href="{% url 'support_dashboard' %}" class="icon-btn compact ico-slate">
+    <i data-lucide="arrow-right"></i><span>بازگشت به فهرست</span>
+  </a>
+</p>
 
 <div class="card" style="margin-bottom:16px">
-  <h2>کار شماره {{ job.pk }} <span class="badge">{{ job.get_status_display }}</span></h2>
+  <h2>کار شماره {{ job.pk }} <span class="badge status-{{ job.status }}">{{ job.get_status_display }}</span></h2>
   <p>
     دسته اصلی: {{ job.get_job_type_display }}<br>
     نوع کار: {{ job.get_workflow_display }}<br>
@@ -34,13 +38,17 @@
   {% if job.status == 'submitted' %}
     <form method="post" action="{% url 'support_job_review' job.pk %}">
       {% csrf_token %}
-      <button type="submit">ثبت به‌عنوان بررسی‌شده</button>
+      <button type="submit" class="icon-btn ico-blue">
+        <i data-lucide="file-check"></i><span>ثبت به‌عنوان بررسی‌شده</span>
+      </button>
     </form>
     <form method="post" action="{% url 'job_return' job.pk %}" style="margin-top:14px">
       {% csrf_token %}
       <label>دلیل برگشت برای اصلاح</label>
       <textarea name="reason" rows="3" required></textarea>
-      <button type="submit" class="danger">برگرداندن برای اصلاح</button>
+      <button type="submit" class="icon-btn ico-slate">
+        <i data-lucide="file-x"></i><span>برگرداندن برای اصلاح</span>
+      </button>
     </form>
   {% elif job.status == 'returned' %}
     <p class="error">این کار برای اصلاح به تکنسین برگشت داده شده و هنوز ارسال مجدد نشده است.</p>
@@ -94,9 +102,9 @@
     <h3>
       {{ section.title }}
       {% if section.complete %}
-        <span class="badge">کامل</span>
+        <span class="badge badge-ok">کامل</span>
       {% else %}
-        <span class="badge" style="background:#fde8e8;color:#b00020">ناقص</span>
+        <span class="badge badge-bad">ناقص</span>
       {% endif %}
     </h3>
 
@@ -155,3 +163,4 @@
   <div class="card"><p class="hint">این نوع کار بخش قابل نمایشی ندارد.</p></div>
 {% endfor %}
 {% endblock %}
+{% block scripts %}{% include 'accounts/_lucide.html' %}{% endblock %}

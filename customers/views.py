@@ -19,6 +19,10 @@ from audit.services import log as audit_log
 
 from .filters import apply_filters, base_customers
 
+from accounts.sorting import header_links, order_by_field, read_sort
+
+CUSTOMER_SORTS = {'registered': 'registered_at', 'modified': 'last_change'}
+
 def _warn_if_duplicate_mobile(request, customer):
     duplicates = Customer.objects.filter(mobile=customer.mobile).exclude(pk=customer.pk)
     if duplicates.exists():
@@ -30,10 +34,16 @@ def _warn_if_duplicate_mobile(request, customer):
 @role_required(User.Role.ADMIN)
 def customer_list(request):
     form = CustomerFilterForm(request.GET or None)
-    customers = apply_filters(base_customers(), form)
+    sort_key, sort_dir = read_sort(request, CUSTOMER_SORTS, 'registered')
+    customers = apply_filters(base_customers(), form).order_by(
+        order_by_field(CUSTOMER_SORTS[sort_key], sort_dir), '-id',   # '-id' keeps pages stable
+    )
     page, qs = paginate(request, customers, 20)
-    return render(request, 'customers/customer_list.html', {'form': form, 'page': page, 'qs': qs})
-
+    return render(request, 'customers/customer_list.html', {
+        'form': form, 'page': page, 'qs': qs,
+        'sort_key': sort_key, 'sort_dir': sort_dir,
+        'sorting': header_links(request, CUSTOMER_SORTS, sort_key, sort_dir),
+    })
 
 
 @role_required(User.Role.ADMIN)
@@ -132,9 +142,12 @@ def customer_export(request):
         ]
         customers = base_customers().filter(pk__in=ids)
     else:
-        # Normal mode: export everything that matches the current filters
+        # Normal mode: export everything that matches the current filters, in the order shown
         form = CustomerFilterForm(request.GET or None)
-        customers = apply_filters(base_customers(), form)
+        sort_key, sort_dir = read_sort(request, CUSTOMER_SORTS, 'registered')
+        customers = apply_filters(base_customers(), form).order_by(
+            order_by_field(CUSTOMER_SORTS[sort_key], sort_dir), '-id',
+        )
 
     workbook = build_customers_workbook(customers)
     today = jdatetime.date.today().strftime('%Y-%m-%d')

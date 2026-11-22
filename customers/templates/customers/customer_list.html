@@ -3,34 +3,46 @@
 {% block title %}مشتریان{% endblock %}
 {% block main_class %}wide{% endblock %}
 {% block content %}
-<h2>مشتریان
-  <a href="{% url 'customer_create' %}" class="btn" style="display:inline-block;width:auto;padding:8px 14px;">
-    + مشتری جدید
-  </a>
-  <a href="{% url 'customer_import' %}" class="btn" style="display:inline-block;width:auto;padding:8px 14px;">
-    ورود از اکسل
-  </a>
-  <a href="{% url 'customer_export' %}?{{ qs }}" id="export-btn" class="btn"
-     title="خروجی اکسل از همه نتایج فیلتر فعلی"
-     style="display:inline-block;width:auto;padding:8px 14px;">
-    خروجی اکسل
-  </a>
-</h2>
+<div class="page-head">
+  <h2>مشتریان</h2>
+  <div class="page-actions">
+    <a href="{% url 'customer_create' %}" class="icon-btn ico-green">
+      <i data-lucide="user-round-plus"></i><span>مشتری جدید</span>
+    </a>
+    <a href="{% url 'customer_import' %}" class="icon-btn ico-slate">
+      <i data-lucide="file-up"></i><span>ورود از اکسل</span>
+    </a>
+    <a href="{% url 'customer_export' %}?{{ qs }}" id="export-btn" class="icon-btn ico-slate"
+       title="خروجی اکسل از همه نتایج فیلتر فعلی">
+      <i data-lucide="file-down"></i><span>خروجی اکسل</span>
+    </a>
+  </div>
+</div>
 
 <form method="get" class="card filters">
+  <input type="hidden" name="sort" value="{{ sort_key }}">
+  <input type="hidden" name="dir" value="{{ sort_dir }}">
   {% for field in form %}
     <div>{{ field.label_tag }} {{ field }} {{ field.errors }}</div>
   {% endfor %}
-  <div class="filter-actions">
-    <button type="submit">اعمال فیلتر</button>
-    <a href="{% url 'customer_list' %}">حذف فیلترها</a>
-    <button type="button" id="select-mode-btn" class="sm-btn">انتخاب</button>
+    <div class="filter-actions">
+    <button type="submit" class="icon-btn compact ico-blue">
+      <i data-lucide="filter"></i><span>اعمال فیلتر</span>
+    </button>
+    <a href="{% url 'customer_list' %}" class="icon-btn compact ico-slate">
+      <i data-lucide="eraser"></i><span>حذف فیلتر ها</span>
+    </a>
+    <button type="button" id="select-mode-btn" class="icon-btn compact ico-blue">
+      <i data-lucide="list-checks"></i><span>انتخاب</span>
+    </button>
   </div>
 </form>
 
 <div class="select-bar" id="select-bar" hidden>
   <span><strong id="sel-count">۰</strong> مورد انتخاب شده</span>
-  <button type="button" id="sel-cancel" class="sm-btn">لغو</button>
+  <button type="button" id="sel-cancel" class="icon-btn compact ico-slate">
+    <i data-lucide="x"></i><span>لغو</span>
+  </button>
 </div>
 
 <div class="table-wrap" id="customers-table">
@@ -41,8 +53,18 @@
           <input type="checkbox" id="select-all-page"
                  title="انتخاب همه موارد این صفحه" aria-label="انتخاب همه موارد این صفحه">
         </th>
-        <th>شناسه اشتراک</th><th>نام</th><th>موبایل</th><th>شهر</th>
-        <th>مرکز</th><th>تاریخ ثبت‌نام</th><th>تاریخ آخرین تغییر</th><th>وضعیت</th><th></th>
+        <th>شناسه اشتراک</th><th>نام</th><th>موبایل</th><th>شهر</th><th>مرکز</th>
+        <th>
+          <a class="sort-link{% if sorting.registered.active %} is-active{% endif %}"
+             href="{{ sorting.registered.url }}">تاریخ ثبت‌نام
+            {% include 'accounts/_sort_arrow.html' with direction=sorting.registered.arrow %}</a>
+        </th>
+        <th>
+          <a class="sort-link{% if sorting.modified.active %} is-active{% endif %}"
+             href="{{ sorting.modified.url }}">تاریخ آخرین تغییر
+            {% include 'accounts/_sort_arrow.html' with direction=sorting.modified.arrow %}</a>
+        </th>
+        <th>وضعیت</th><th></th>
       </tr>
     </thead>
     <tbody>
@@ -59,17 +81,27 @@
           <td class="ltr">{{ c.center }}</td>
           <td>{{ c.registered_at|jalali }}</td>
           <td>
-            {% if c.last_activity %}
-              <span title="{{ c.last_activity|jalali }}">{{ c.last_activity|time_ago }}</span>
+            {% if c.last_change %}
+              <span title="{{ c.last_change|jalali }}">{{ c.last_change|time_ago }}</span>
             {% else %}
               —
             {% endif %}
           </td>
-          <td>{{ c.current_status_display }}</td>
-          <td><a href="{% url 'customer_detail' c.pk %}">مشاهده</a></td>
+                    <td>
+            {% with status=c.current_status_display %}
+              <span title="{{ status }}">{{ status|slice:":34" }}</span>
+            {% endwith %}
+          </td>
+          <td>
+            <a class="view-link" href="{% url 'customer_detail' c.pk %}">
+              <i data-lucide="eye"></i><span>مشاهده</span>
+            </a>
+          </td>
         </tr>
       {% empty %}
-        <tr><td colspan="10">موردی پیدا نشد.</td></tr>
+        <tr><td colspan="10" class="empty-cell">
+          {% include 'accounts/_empty.html' with icon='users' title='موردی پیدا نشد' text='فیلترها را تغییر دهید یا پاک کنید.' %}
+        </td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -149,6 +181,15 @@
       saveSelected();
       render();
     });
+
+    // In selection mode, a click anywhere in the row ticks or unticks it
+    box.closest('tr').addEventListener('click', function (event) {
+      if (!active) { return; }
+      // The customer's name, the "view" link and the checkbox itself keep their normal behavior
+      if (event.target.closest('a, button, input, label')) { return; }
+      box.checked = !box.checked;
+      box.dispatchEvent(new Event('change'));
+    });
   });
 
   allBox.addEventListener('change', function () {
@@ -178,3 +219,5 @@
 })();
 </script>
 {% endblock %}
+
+{% block scripts %}{% include 'accounts/_lucide.html' %}{% endblock %}

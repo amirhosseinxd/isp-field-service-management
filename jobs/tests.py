@@ -644,3 +644,44 @@ class LastStepButtonTests(JobTestBase):
         self.assertNotContains(self.client.get(location), 'مرحله قبل')   # nothing comes before the location
         self.assertContains(self.client.get(first), f'href="{location}">مرحله قبل')
         self.assertContains(self.client.get(second), f'href="{first}">مرحله قبل')
+
+
+
+
+class DashboardSortTests(JobTestBase):
+    def submitted_job(self, minutes_ago):
+        job = self.make_job('installation', 'fusion')
+        Job.objects.filter(pk=job.pk).update(
+            status=Job.Status.SUBMITTED, submitted_at=timezone.now() - timedelta(minutes=minutes_ago),
+        )
+        return job
+
+    def page(self, **params):
+        self.client.login(username='t_admin', password=PASSWORD)
+        return self.client.get(reverse('support_dashboard'), params)
+
+    def test_newest_submission_first_by_default_and_reversible(self):
+        old, new = self.submitted_job(60), self.submitted_job(5)
+        self.assertEqual([j.pk for j in self.page().context['page']], [new.pk, old.pk])
+        self.assertEqual(
+            [j.pk for j in self.page(sort='submitted', dir='asc').context['page']], [old.pk, new.pk],
+        )
+
+    def test_sorting_keeps_the_default_status_filter(self):
+        self.submitted_job(5)
+        draft = self.make_job('installation', 'fusion')      # not submitted
+        ids = [j.pk for j in self.page(sort='submitted', dir='asc').context['page']]
+        self.assertNotIn(draft.pk, ids)
+
+    def test_page_two_keeps_the_default_status_filter(self):
+        for minutes in range(21):
+            self.submitted_job(minutes + 1)
+        self.make_job('installation', 'fusion')              # not submitted
+        page_two = self.page(page=2).context['page']
+        self.assertTrue(all(job.status == 'submitted' for job in page_two))
+
+    def test_header_link_and_icons(self):
+        page = self.page()
+        self.assertContains(page, 'href="?sort=submitted&amp;dir=asc"')
+        for icon in ('clipboard-plus', 'chart-no-axes-combined'):
+            self.assertContains(page, f'data-lucide="{icon}"')

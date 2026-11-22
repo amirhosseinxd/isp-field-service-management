@@ -1,19 +1,40 @@
 {% extends 'accounts/base.html' %}
-{% block title %}ورود به سامانه{% endblock %}
+{% block title %}ورود{% endblock %}
+{% block main_class %}auth-page{% endblock %}
 {% block content %}
-<div class="card">
-  <h2>ورود به سامانه</h2>
+<div class="theme-float">{% include 'accounts/_theme_button.html' %}</div>
+
+<div class="auth-brand">
+  <div class="auth-logo" aria-hidden="true">🛠️</div>
+  <h1>سامانه کارهای میدانی</h1>
+  <p>برای ادامه وارد حساب خود شوید</p>
+</div>
+
+<div class="card auth-card">
   {% if form.errors %}
-    <p class="error">نام کاربری یا رمز عبور اشتباه است</p>
+    <div class="msg error">نام کاربری یا رمز عبور اشتباه است.</div>
   {% endif %}
   <form method="post">
     {% csrf_token %}
     <input type="hidden" name="next" value="{{ next }}">
-    <label>نام کاربری</label>
-    <input type="text" name="username" class="ltr" autocomplete="username" autofocus required>
-    <label>رمز عبور</label>
-    <input type="password" name="password" class="ltr" autocomplete="current-password" required>
-    <button type="submit" class="login-btn">Log in</button>
+
+    <label for="id_username">نام کاربری</label>
+    <input type="text" id="id_username" name="username" class="ltr"
+           autocomplete="username" autofocus required>
+
+    <label for="id_password">رمز عبور</label>
+    <input type="password" id="id_password" name="password" class="ltr"
+           autocomplete="current-password" required>
+
+    <label class="check-row"><input type="checkbox" id="show-password"> نمایش رمز عبور</label>
+
+    <button type="submit" class="btn login-btn">ورود</button>
   </form>
 </div>
+
+<script>
+  document.getElementById('show-password').addEventListener('change', function () {
+    document.getElementById('id_password').type = this.checked ? 'text' : 'password';
+  });
+</script>
 {% endblock %}

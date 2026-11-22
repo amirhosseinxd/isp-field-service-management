@@ -6,6 +6,12 @@ from jobs.models import JobMaterialUsage
 from .exports import BILLABLE_STATUSES
 from .models import Customer
 
+from datetime import datetime, timezone as dt_timezone
+
+from django.db.models import DateTimeField, Value
+from django.db.models.functions import Coalesce, Greatest, NullIf
+
+
 # Materials that are really one item, shown as a single filter option
 MATERIAL_GROUPS = {
     'g_splitter': ('اسپلیتر', ('M012', 'M013')),
@@ -32,9 +38,21 @@ def codes_for(choice):
     return (choice,)
 
 
+NEVER = datetime(1970, 1, 1, tzinfo=dt_timezone.utc)   # stands in for "no date" inside the query
+
+
 def base_customers():
-    return Customer.objects.select_related('city').annotate(
-        last_activity=Max('jobs__updated_at'),
+    never = Value(NEVER, output_field=DateTimeField())
+    return (
+        Customer.objects.select_related('city')
+        .annotate(last_activity=Max('jobs__updated_at'))
+        .annotate(last_change=NullIf(
+            Greatest(
+                Coalesce('last_modified_at', never),
+                Coalesce('last_activity', never),
+            ),
+            never,
+        ))
     )
 
 

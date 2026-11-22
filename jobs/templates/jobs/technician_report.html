@@ -2,7 +2,11 @@
 {% block title %}گزارش عملکرد تکنسین‌ها{% endblock %}
 {% block main_class %}wide{% endblock %}
 {% block content %}
-<p><a href="{% url 'support_dashboard' %}">← بازگشت به فهرست</a></p>
+<p>
+  <a href="{% url 'support_dashboard' %}" class="icon-btn compact ico-slate">
+    <i data-lucide="arrow-right"></i><span>بازگشت به فهرست</span>
+  </a>
+</p>
 
 <div class="card" style="max-width:520px">
   <h2>گزارش عملکرد تکنسین‌ها</h2>
@@ -23,3 +27,4 @@
   </form>
 </div>
 {% endblock %}
+{% block scripts %}{% include 'accounts/_lucide.html' %}{% endblock %}

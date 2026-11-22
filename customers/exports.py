@@ -84,7 +84,7 @@ def build_customers_workbook(customers):
             c.city.name,
             c.center,
             _jalali_text(c.registered_at),
-            jalali(getattr(c, 'last_activity', None)) or None,
+            jalali(getattr(c, 'last_change', None)) or None,
             c.current_status_display(),
         ] + [
             float(customer_totals[m.code]) if m.code in customer_totals else None

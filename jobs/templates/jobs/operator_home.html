@@ -6,7 +6,7 @@
 {% for job in active_jobs %}
   <a class="card" href="{% url 'job_start' job.pk %}">
     <strong>کار شماره {{ job.pk }} — {{ job.get_workflow_display }}</strong>
-    <span class="badge">{{ job.get_status_display }}</span>
+    <span class="badge status-{{ job.status }}">{{ job.get_status_display }}</span>
     <div>
       {% if job.customer %}{{ job.customer.full_name }}{% else %}<span class="hint">مشترک ثبت نشده</span>{% endif %}
     </div>
@@ -16,7 +16,9 @@
     {% endif %}
   </a>
 {% empty %}
-  <div class="card"><p>فعلاً کار فعالی ندارید.</p></div>
+  <div class="card">
+  {% include 'accounts/_empty.html' with icon='clipboard' title='کار فعالی ندارید' text='وقتی کاری به شما ارجاع شود، همین‌جا نمایش داده می‌شود.' %}
+  </div>
 {% endfor %}
 
 {% if submitted_jobs %}
@@ -24,7 +26,7 @@
   {% for job in submitted_jobs %}
     <div class="card" style="margin-bottom:12px">
       کار شماره {{ job.pk }} — {{ job.get_workflow_display }}
-      <span class="badge">{{ job.get_status_display }}</span>
+      <span class="badge status-{{ job.status }}">{{ job.get_status_display }}</span>
       {% if job.customer %}<div>{{ job.customer.full_name }}</div>{% endif %}
       {% if job.submitted_at %}
         <div class="hint" title="{{ job.submitted_at|jalali }}">ارسال: {{ job.submitted_at|time_ago }}</div>
