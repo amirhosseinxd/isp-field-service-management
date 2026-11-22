@@ -9,4 +9,5 @@ urlpatterns = [
     path('', include('audit.urls')),
     path('', include('notifications.urls')),
     path('', include('pwa.urls')),
+    path('', include('usermgmt.urls')),
 ]

@@ -1,0 +1,77 @@
+{% extends 'accounts/base.html' %}
+{% load jalali_tags %}
+{% block title %}مدیریت کاربران{% endblock %}
+{% block main_class %}wide{% endblock %}
+{% block content %}
+<h2>مدیریت کاربران <span class="badge">{{ online_count }} تکنسین آنلاین</span></h2>
+
+<div class="filter-actions" style="margin-bottom:12px">
+  <a href="{% url 'user_create' %}" class="icon-btn ico-green"><i data-lucide="user-round-cog"></i><span>تکنسین جدید</span></a>
+  {% if can_create_support %}
+    <a href="{% url 'user_create' %}?role=admin" class="icon-btn ico-blue"><i data-lucide="user-round-star"></i><span>پشتیبان جدید</span></a>
+  {% endif %}
+</div>
+
+<form method="get" class="card filters">
+  {% for field in form %}
+    <div>{{ field.label_tag }} {{ field }} {{ field.errors }}</div>
+  {% endfor %}
+  <div class="filter-actions">
+    <button type="submit" class="icon-btn compact ico-blue"><i data-lucide="filter"></i><span>اعمال فیلتر</span></button>
+    <a href="{% url 'user_list' %}" class="icon-btn compact ico-slate"><i data-lucide="eraser"></i><span>حذف فیلتر ها</span></a>
+  </div>
+</form>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>نام</th><th>نام کاربری</th><th>نقش</th><th>وضعیت حساب</th><th>آخرین فعالیت</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+        {% with u=row.user %}
+        <tr{% if not u.is_active %} class="row-inactive"{% endif %}>
+          <td>
+            {{ u.display_name }}
+            {% if u.pk == request.user.pk %}<span class="badge">شما</span>{% endif %}
+          </td>
+          <td class="ltr">{{ u.username }}</td>
+          <td>
+            {{ u.get_role_display }}
+            {% if u.is_superuser %}<span class="badge">مالک</span>
+            {% elif u.can_manage_accounts %}<span class="badge">مدیر حساب‌ها</span>{% endif %}
+          </td>
+          <td>
+            {% if u.is_active %}<span class="badge status-reviewed">فعال</span>
+            {% else %}<span class="badge status-returned">غیرفعال</span>{% endif %}
+          </td>
+          <td>
+            {% if u.is_online %}
+              <span class="presence online"></span>آنلاین
+            {% elif u.last_seen %}
+              <span class="presence"></span><span title="{{ u.last_seen|jalali }}">{{ u.last_seen|timesince }} پیش</span>
+            {% else %}
+              <span class="hint">—</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if row.can_edit %}
+              <a class="view-link" href="{% url 'user_edit' u.pk %}"><i data-lucide="pencil"></i><span>ویرایش</span></a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endwith %}
+      {% empty %}
+        <tr><td colspan="6" class="empty-cell">
+          {% include 'accounts/_empty.html' with icon='users' title='کاربری پیدا نشد' text='فیلترها را تغییر دهید یا پاک کنید.' %}
+        </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% include 'jobs/_pagination.html' %}
+{% endblock %}
+{% block scripts %}{% include 'accounts/_lucide.html' %}{% endblock %}

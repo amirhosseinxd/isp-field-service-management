@@ -84,16 +84,17 @@ def sync_overdue_notifications(now=None):
             keys_by_recipient[notice.recipient_id].append(notice.dedupe_key)
         transaction.on_commit(lambda: push_new_overdue(dict(keys_by_recipient)))
 
-    # The situation exists again (for example a date was corrected): bring the notice back
-    Notification.objects.filter(kind=kind, resolved_at__isnull=False, job__in=overdue).update(
-        resolved_at=None,
-    )
-    # The situation is gone (the job was reviewed): retire the notice, keeping its read state
+    # The situation exists again (for example a date was corrected): bring the notice back,
+    # but only for people who are still active support staff
+    Notification.objects.filter(
+        kind=kind, resolved_at__isnull=False, job__in=overdue, recipient__in=admins,
+    ).update(resolved_at=None)
+    # The situation is gone (the job was reviewed), or the person is no longer active support staff
+    # (deactivated, or changed to technician): retire the notice, keeping its read state
     Notification.objects.filter(kind=kind, resolved_at__isnull=True).exclude(
-        job__in=overdue,
+        job__in=overdue, recipient__in=admins,
     ).update(resolved_at=now)
     return overdue.count()
-
 
 
 def maybe_sync_overdue():

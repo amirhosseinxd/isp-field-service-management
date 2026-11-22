@@ -1,0 +1,73 @@
+{% extends 'accounts/base.html' %}
+{% block title %}{% if creating %}حساب جدید{% else %}ویرایش حساب{% endif %}{% endblock %}
+{% block content %}
+<p>
+  <a href="{% url 'user_list' %}" class="icon-btn compact ico-slate">
+    <i data-lucide="arrow-right"></i><span>بازگشت به فهرست کاربران</span>
+  </a>
+</p>
+
+<div class="card">
+  <h2>{% if creating %}حساب جدید{% else %}ویرایش «{{ subject_name }}»{% endif %}</h2>
+  {% if not creating and form.can_change_access %}
+    <div class="msg warning">
+      <strong>هشدار تغییر نقش:</strong>
+      تبدیل تکنسین به پشتیبان به او دسترسی به اطلاعات همهٔ مشتریان، عکس‌ها و گزارش‌ها می‌دهد؛
+      تبدیل پشتیبان به تکنسین دسترسی او به پنل پشتیبانی را می‌بندد و دسترسی «مدیریت حساب‌ها» را برمی‌دارد.
+      برای تغییر نقش، گزینهٔ تأیید پایین را تیک بزنید. این کار در گزارش تغییرات ثبت می‌شود.
+    </div>
+  {% endif %}
+  <form method="post" autocomplete="off">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    {% for field in form %}
+      <div>
+        {{ field.label_tag }} {{ field }} {{ field.errors }}
+        {% if field.help_text %}<div class="hint">{{ field.help_text|safe }}</div>{% endif %}
+      </div>
+    {% endfor %}
+    <button type="submit" class="btn">ذخیره</button>
+  </form>
+</div>
+
+{% if not creating %}
+<div class="card" style="margin-top:16px">
+  <h3>وضعیت حساب</h3>
+  <p>
+     نقش: {{ target.get_role_display }}{% if target.is_superuser %} (مالک){% elif target.can_manage_accounts %} (مدیر حساب‌ها){% endif %}
+    — {% if target.is_active %}فعال{% else %}غیرفعال{% endif %}
+  </p>
+
+  <div class="filter-actions">
+    <a href="{% url 'user_set_password' target.pk %}" class="icon-btn ico-blue">
+      <i data-lucide="key-round"></i><span>{% if is_self %}تغییر رمز من{% else %}تغییر رمز عبور{% endif %}</span>
+    </a>
+
+    {% if can_manage %}
+      {% if target.is_active %}
+        <form method="post" action="{% url 'user_set_active' target.pk %}"
+              onsubmit="return confirm('این حساب غیرفعال شود؟ کاربر دیگر نمی‌تواند وارد شود، اما کارها و گزارش‌های او حفظ می‌شود.');">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="deactivate">
+          <button type="submit" class="icon-btn ico-slate"><i data-lucide="user-x"></i><span>غیرفعال‌سازی</span></button>
+        </form>
+      {% else %}
+        <form method="post" action="{% url 'user_set_active' target.pk %}">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="activate">
+          <button type="submit" class="icon-btn ico-green"><i data-lucide="user-check"></i><span>فعال‌سازی</span></button>
+        </form>
+      {% endif %}
+    {% endif %}
+  </div>
+
+  {% if can_manage and target.is_active and open_jobs %}
+    <p class="hint">توجه: این تکنسین {{ open_jobs }} کار ناتمام دارد؛ تا زمانی که ارجاع نشوند، به نام او می‌مانند.</p>
+  {% endif %}
+  {% if is_self %}
+    <p class="hint">نقش و وضعیت حساب خودتان را نمی‌توانید تغییر دهید.</p>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}{% include 'accounts/_lucide.html' %}{% endblock %}

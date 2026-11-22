@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'audit',
     'notifications',
     'pwa',
+    'usermgmt',
 ]
 
 MIDDLEWARE = [
@@ -52,6 +53,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'accounts.middleware.LastSeenMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -159,3 +161,6 @@ VAPID_ADMIN_SUBJECT = 'mailto:you@example.com'   # put a real contact address he
 # Change this value whenever you want every phone to throw away its saved static files
 # (for example after replacing the background image). Any text works: '2', '2026-12-01', ...
 PWA_VERSION = '1'
+
+# A person counts as "online" if they used the app within this many minutes
+USER_ONLINE_MINUTES = 5

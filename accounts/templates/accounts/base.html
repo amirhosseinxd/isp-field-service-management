@@ -491,6 +491,12 @@
     .select-mode tbody tr { cursor: pointer; }
     .select-mode tbody tr td { user-select: none; }
 
+    /* ===== User management ===== */
+    .presence { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #9ca3af;
+                margin-inline-end: 6px; vertical-align: middle; }
+    .presence.online { background: #16a34a; box-shadow: 0 0 0 3px rgba(22, 163, 74, .25); }
+    tr.row-inactive td { opacity: .6; }
+
     /* ===== Install banner (PWA) ===== */
     .install-banner { position: fixed; inset-inline: 12px; bottom: 12px; z-index: 60; display: flex; align-items: center;
                       gap: 10px; padding: 10px 12px; background: var(--card); color: var(--text);
@@ -519,6 +525,7 @@
       <a href="{% url 'support_dashboard' %}" class="{% nav_active request 'support_dashboard' 'support_job_detail' 'job_create' 'technician_report' %}">کارها</a>
       <a href="{% url 'photo_history' %}" class="{% nav_active request 'photo_history' %}">آرشیو مدیا</a>
       <a href="{% url 'customer_list' %}" class="{% nav_active request 'customer_list' 'customer_detail' 'customer_create' 'customer_edit' 'customer_import' %}">مشتریان</a>
+            <a href="{% url 'user_list' %}" class="{% nav_active request 'user_list' 'user_create' 'user_edit' 'user_set_password' %}">کاربران</a>
       <a href="{% url 'audit_list' %}" class="{% nav_active request 'audit_list' %}">گزارش تغییرات</a>
     </nav>
     {% endif %}

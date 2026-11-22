@@ -109,6 +109,8 @@ class OperatorChoiceField(forms.ModelChoiceField):
 def operators():
     return User.objects.filter(role=User.Role.OPERATOR)
 
+def active_operators():
+    return User.objects.filter(role=User.Role.OPERATOR, is_active=True)
 
 class JobFilterForm(forms.Form):
     status = forms.ChoiceField(
@@ -249,7 +251,7 @@ class CustomerSelect(forms.Select):
 
 
 class JobCreateForm(forms.ModelForm):
-    assigned_operator = OperatorChoiceField(label='تکنسین', queryset=operators())
+    assigned_operator = OperatorChoiceField(label='تکنسین', queryset=active_operators())
     customer = CustomerChoiceField(
         label='مشترک', queryset=Customer.objects.select_related('city'), widget=CustomerSelect,
     )

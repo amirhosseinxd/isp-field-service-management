@@ -15,6 +15,13 @@ class AuditEntry(models.Model):
         CUSTOMER_IMPORT = 'customer_import', 'ورود مشترکین از اکسل'
         LOGIN = 'login', 'ورود موفق'
         LOGIN_FAILED = 'login_failed', 'ورود ناموفق'
+        USER_CREATED = 'user_created', 'ایجاد حساب کاربری'
+        USER_UPDATED = 'user_updated', 'ویرایش حساب کاربری'
+        USER_DEACTIVATED = 'user_deactivated', 'غیرفعال‌سازی حساب'
+        USER_ACTIVATED = 'user_activated', 'فعال‌سازی حساب'
+        USER_PASSWORD_RESET = 'user_password_reset', 'تغییر رمز عبور'
+        USER_ROLE_CHANGED = 'user_role_changed', 'تغییر نقش حساب'
+        USER_ACCESS_CHANGED = 'user_access_changed', 'تغییر دسترسی مدیریت حساب‌ها'
 
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     actor = models.ForeignKey(
