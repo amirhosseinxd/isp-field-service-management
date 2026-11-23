@@ -1,0 +1,28 @@
+{% load ui_tags %}
+<a class="mail-link {% nav_active request 'inbox' 'message_new' 'conversation' %}" id="mail-link"
+   href="{% url 'inbox' %}" aria-label="پیام‌ها" title="پیام‌ها"
+   data-unread-url="{% url 'messages_unread' %}">
+  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
+       stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <rect width="20" height="16" x="2" y="4" rx="2"/>
+    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+  </svg>
+  <span class="mail-badge"{% if not inbox_unread %} hidden{% endif %}>{{ inbox_badge }}</span>
+</a>
+<script>
+  (function () {
+    var link = document.getElementById('mail-link');
+    if (!link || link.dataset.ready) { return; }
+    link.dataset.ready = '1';
+    var badge = link.querySelector('.mail-badge');
+    function poll() {
+      if (document.hidden) { return; }
+      fetch(link.dataset.unreadUrl, { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (data) { badge.textContent = data.badge; badge.hidden = data.unread === 0; })
+        .catch(function () {});
+    }
+    setInterval(poll, 60000);                             // every minute, like the bell
+    document.addEventListener('visibilitychange', poll);  // when the tab comes back into view
+  })();
+</script>

@@ -6,7 +6,7 @@ UPDATE_EVERY_SECONDS = 60
 # Requests the browser makes by itself, not because a person did something
 IGNORED_PREFIXES = (
     '/static/', '/media/', '/sw.js', '/manifest.webmanifest', '/pwa/', '/offline/',
-    '/notifications/panel/', '/notifications/push/',
+    '/notifications/panel/', '/notifications/push/', '/messages/unread/',
 )
 
 

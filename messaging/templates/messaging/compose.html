@@ -1,0 +1,45 @@
+{% extends 'accounts/base.html' %}
+{% block title %}پیام جدید{% endblock %}
+{% block main_class %}{% if user.is_support_admin %}wide{% endif %}{% endblock %}
+{% block content %}
+<div class="msg-wrap">
+  <p>{% include 'messaging/_back.html' %}</p>
+  <div class="card">
+    <h2>{% if user.is_support_admin %}پیام جدید{% else %}پیام جدید به پشتیبانی{% endif %}</h2>
+    <form method="post" id="compose-form" onsubmit="this.querySelector('button[type=submit]').disabled = false;">
+      {% csrf_token %}
+      {{ form.non_field_errors }}
+      {% for field in form %}
+        <div>{{ field.label_tag }} {{ field }} {{ field.errors }}</div>
+      {% endfor %}
+      <p class="hint" id="compose-hint">
+        {% if not user.is_support_admin %}پیام شما در صندوق مشترک پشتیبانی دیده می‌شود و هر یک از پشتیبان‌ها می‌تواند پاسخ دهد.{% endif %}
+      </p>
+      <button type="submit" class="btn">ارسال</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+{% if user.is_support_admin %}{% include 'accounts/_lucide.html' %}{% endif %}
+<script>
+  (function () {
+    var select = document.getElementById('id_recipient');
+    var form = document.getElementById('compose-form');
+    var hint = document.getElementById('compose-hint');
+    if (!select || !form) { return; }
+    function update() {
+      hint.textContent = select.value === 'all'
+        ? 'این پیام به‌صورت اطلاعیه برای همهٔ تکنسین‌ها ارسال می‌شود و آن‌ها در همین صفحه نمی‌توانند پاسخ دهند.'
+        : 'این یک گفت‌وگوی خصوصی است: فقط این تکنسین و پشتیبانی آن را می‌بینند و او می‌تواند پاسخ دهد.';
+    }
+    select.addEventListener('change', update);
+    update();
+    form.addEventListener('submit', function (e) {
+      if (select.value === 'all' && !confirm('این پیام برای همهٔ تکنسین‌ها ارسال می‌شود. ادامه می‌دهید؟')) {
+        e.preventDefault();
+      }
+    });
+  })();
+</script>
+{% endblock %}

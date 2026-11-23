@@ -10,4 +10,5 @@ urlpatterns = [
     path('', include('notifications.urls')),
     path('', include('pwa.urls')),
     path('', include('usermgmt.urls')),
+    path('', include('messaging.urls')),
 ]

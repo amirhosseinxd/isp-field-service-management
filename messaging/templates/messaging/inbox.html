@@ -1,0 +1,81 @@
+{% extends 'accounts/base.html' %}
+{% load jalali_tags %}
+{% block title %}پیام‌ها{% endblock %}
+{% block main_class %}{% if user.is_support_admin %}wide{% endif %}{% endblock %}
+{% block content %}
+<div class="msg-wrap">
+  <div class="page-head">
+    <h2>پیام‌ها {% if unread_total %}<span class="unread-pill">{{ unread_total }}</span>{% endif %}</h2>
+    {% if user.is_support_admin %}
+      <a href="{% url 'message_new' %}" class="icon-btn ico-green"><i data-lucide="send"></i><span>پیام جدید</span></a>
+    {% endif %}
+  </div>
+
+  {% if not user.is_support_admin %}
+    <a href="{% url 'message_new' %}" class="btn">پیام جدید به پشتیبانی</a>
+  {% endif %}
+
+  <nav class="chips" style="margin-top:12px">
+    {% for t in tabs %}
+      <a class="chip{% if t.key == tab %} active{% endif %}" href="?tab={{ t.key }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}">
+        {{ t.label }}{% if t.count %}<span class="count">{{ t.count }}</span>{% endif %}
+      </a>
+    {% endfor %}
+    {% if unread_total %}
+      <form method="post" action="{% url 'messages_read_all' %}" style="display:inline">
+        {% csrf_token %}
+        <button type="submit" class="chip">همه را خوانده‌شده کن</button>
+      </form>
+    {% endif %}
+  </nav>
+
+  {% if user.is_support_admin %}
+  <form method="get" class="card filters">
+    <input type="hidden" name="tab" value="{{ tab }}">
+    <div>
+      <label for="q">جستجو</label>
+      <input type="text" id="q" name="q" value="{{ q }}" placeholder="موضوع یا نام تکنسین">
+    </div>
+    <div class="filter-actions">
+      <button type="submit" class="icon-btn compact ico-blue"><i data-lucide="filter"></i><span>اعمال فیلتر</span></button>
+      <a href="{% url 'inbox' %}" class="icon-btn compact ico-slate"><i data-lucide="eraser"></i><span>حذف فیلتر ها</span></a>
+    </div>
+  </form>
+  {% endif %}
+
+  <div class="conv-list">
+    {% for row in rows %}
+      {% with c=row.conv %}
+      <a class="conv-card{% if row.unread %} unread{% endif %}" href="{% url 'conversation' c.pk %}">
+        <div class="conv-top">
+          <span class="kind-tag {{ c.kind }}">{{ c.get_kind_display }}</span>
+          <strong class="conv-title">{{ c.subject }}</strong>
+          {% if row.unread %}<span class="unread-pill">{{ row.unread }}</span>{% endif %}
+        </div>
+        <div class="conv-meta">
+          {% if c.kind == 'announcement' %}گیرنده: همهٔ تکنسین‌ها ({{ c.recipient_count }} نفر)
+          {% elif user.is_support_admin %}تکنسین: {{ c.technician.display_name }}
+          {% else %}گفت‌وگو با پشتیبانی{% endif %}
+        </div>
+        <div class="conv-preview">{{ c.last_sender.display_name }}: {{ c.last_preview }}</div>
+        <div class="conv-foot">
+          <span>{{ c.last_message_at|jalali }}</span>
+          {% if c.kind == 'private' %}
+            {% if c.waiting_for_support %}
+              <span class="state-chip waiting">منتظر پاسخ پشتیبانی</span>
+            {% else %}
+              <span class="state-chip answered">آخرین پیام: {{ c.last_sender.display_name }}</span>
+            {% endif %}
+          {% endif %}
+        </div>
+      </a>
+      {% endwith %}
+    {% empty %}
+      <div class="card"><p>پیامی وجود ندارد.</p></div>
+    {% endfor %}
+  </div>
+
+  {% include 'jobs/_pagination.html' %}
+</div>
+{% endblock %}
+{% block scripts %}{% if user.is_support_admin %}{% include 'accounts/_lucide.html' %}{% endif %}{% endblock %}

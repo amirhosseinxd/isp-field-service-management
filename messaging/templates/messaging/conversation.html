@@ -1,0 +1,90 @@
+{% extends 'accounts/base.html' %}
+{% load jalali_tags %}
+{% block title %}{{ conv.subject }}{% endblock %}
+{% block main_class %}{% if user.is_support_admin %}wide{% endif %}{% endblock %}
+{% block content %}
+<div class="msg-wrap">
+  <p>{% include 'messaging/_back.html' %}</p>
+
+  <div class="card">
+    <div class="conv-top">
+      <span class="kind-tag {{ conv.kind }}">{{ conv.get_kind_display }}</span>
+      <h2 style="margin:0;flex:1">{{ conv.subject }}</h2>
+    </div>
+    <p class="conv-meta" style="margin:8px 0 0">
+      {% if conv.kind == 'announcement' %}
+        گیرندگان: همهٔ تکنسین‌ها ({{ conv.recipient_count }} نفر) · ارسال‌کننده: {{ conv.created_by.display_name }}
+        {% if reader_count is not None %}· خوانده‌شده: {{ reader_count }} نفر{% endif %}
+      {% elif is_support %}
+        گفت‌وگو با تکنسین: <strong>{{ conv.technician.display_name }}</strong> · صندوق مشترک پشتیبانی
+      {% else %}
+        گفت‌وگوی شما با پشتیبانی
+      {% endif %}
+    </p>
+  </div>
+
+  {% if is_support and conv.kind == 'private' %}
+    {% if conv.waiting_for_support %}
+      <div class="status-banner waiting">این گفت‌وگو هنوز پاسخ داده نشده است.</div>
+    {% else %}
+      <div class="status-banner answered">
+        {% if conv.last_sender_id == user.id %}
+          شما {% if thread|length == 1 %}این گفت‌وگو را شروع کرده‌اید{% else %}آخرین پاسخ را داده‌اید{% endif %}.
+        {% else %}
+          <strong>{{ conv.last_sender.display_name }}</strong>
+          {% if thread|length == 1 %}این گفت‌وگو را شروع کرده است{% else %}قبلاً پاسخ داده است{% endif %}.
+        {% endif %}
+        ({{ conv.last_message_at|jalali }})
+      </div>
+    {% endif %}
+  {% endif %}
+
+  <div class="thread">
+    {% for m in thread %}
+      <div class="bubble{% if m.sender_id == user.id %} mine{% endif %}{% if m.id in new_ids %} is-new{% endif %}" id="m{{ m.id }}">
+        <div class="bubble-head">
+          <strong>{{ m.sender.display_name }}</strong>
+          <span class="role-tag">{{ m.sender.get_role_display }}</span>
+          {% if m.id in new_ids %}<span class="new-tag">جدید</span>{% endif %}
+        </div>
+        <div class="bubble-body">{{ m.body|linebreaksbr }}</div>
+        <div class="bubble-foot">به: {{ m.to_label }} · {{ m.created_at|jalali }}</div>
+      </div>
+    {% endfor %}
+  </div>
+
+  {% if replying %}
+    <form method="post" class="card reply-box" onsubmit="this.querySelector('button').disabled = true;">
+      {% csrf_token %}
+      <input type="hidden" name="after" value="{{ last_id }}">
+      {{ form.non_field_errors }}
+      {{ form.body.errors }}
+      {{ form.body }}
+      <button type="submit" class="btn">ارسال پاسخ</button>
+    </form>
+  {% elif conv.kind == 'announcement' %}
+    <div class="card">
+      <p class="hint">اطلاعیه‌ها فقط برای اطلاع‌رسانی هستند و پاسخ در همین صفحه ثبت نمی‌شود.</p>
+      {% if is_support %}
+        <a class="btn" href="{% url 'message_new' %}">پیام جدید</a>
+      {% else %}
+        <a class="btn" href="{% url 'message_new' %}?ref={{ conv.pk }}">ارسال پیام به پشتیبانی دربارهٔ این اطلاعیه</a>
+      {% endif %}
+    </div>
+  {% else %}
+    <div class="card"><p class="hint">این تکنسین غیرفعال است و امکان پاسخ وجود ندارد.</p></div>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+{% if user.is_support_admin %}{% include 'accounts/_lucide.html' %}{% endif %}
+<script>
+  (function () {
+    // Jump to the first new message, otherwise to the reply box
+    var first = document.querySelector('.bubble.is-new');
+    if (first) { first.scrollIntoView({ block: 'center' }); return; }
+    var box = document.querySelector('.reply-box');
+    if (box) { box.scrollIntoView({ block: 'end' }); }
+  })();
+</script>
+{% endblock %}

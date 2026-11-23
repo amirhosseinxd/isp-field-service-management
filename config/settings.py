@@ -9,23 +9,45 @@ https://docs.djangoproject.com/en/6.1/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.1/ref/settings/
 """
+import os
 
+from django.core.exceptions import ImproperlyConfigured
+from dotenv import load_dotenv
 from pathlib import Path
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+load_dotenv(BASE_DIR / '.env')      # reads the .env file if it exists
+
+def env_list(name, default=''):
+    return [item.strip() for item in os.environ.get(name, default).split(',') if item.strip()]
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
 
+DEV_SECRET_KEY = 'dev-only-key-never-use-in-production'
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-e%4o_(o#m^oi5c1zo$96ihxqs43-vjy=4m#sn40@uk5v2bd_d1'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', DEV_SECRET_KEY)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DJANGO_DEBUG') == '1'          # off unless the .env says otherwise
 
-ALLOWED_HOSTS = ['*','37.156.153.22','172.20.10.3']
+ALLOWED_HOSTS = env_list('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1')
+CSRF_TRUSTED_ORIGINS = env_list('DJANGO_CSRF_TRUSTED_ORIGINS')
+
+
+# Only on the server, once the site really runs on https
+SESSION_COOKIE_SECURE = os.environ.get('DJANGO_HTTPS') == '1'
+CSRF_COOKIE_SECURE = SESSION_COOKIE_SECURE
+if SESSION_COOKIE_SECURE:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+
+# Safety net: refuse to start in production with the development key
+if not DEBUG and SECRET_KEY == DEV_SECRET_KEY:
+    raise ImproperlyConfigured('Set DJANGO_SECRET_KEY in the .env file.')
 
 
 # Application definition
@@ -45,6 +67,7 @@ INSTALLED_APPS = [
     'notifications',
     'pwa',
     'usermgmt',
+    'messaging',
 ]
 
 MIDDLEWARE = [
@@ -71,6 +94,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'notifications.context_processors.notifications',
+                'messaging.context_processors.inbox',
             ],
         },
     },
@@ -114,7 +138,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Tehran'
 
 USE_I18N = True
 
